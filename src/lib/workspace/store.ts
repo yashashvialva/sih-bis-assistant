@@ -282,6 +282,44 @@ export function generateRoadmap(productId: string): {
 
 // ─── Step Status Updates ─────────────────────────────────────
 
+export function saveRoadmapFromApi(productId: string, stepsFromApi: RoadmapStep[]): { roadmap: Roadmap; steps: RoadmapStep[] } {
+  state = getInitialState();
+  
+  const product = state.products.find(p => p.id === productId);
+  if (!product) throw new Error('Product not found');
+
+  // Remove existing roadmap if any
+  const existingRoadmap = state.roadmaps.find(r => r.productId === productId);
+  if (existingRoadmap) {
+    state.roadmapSteps = state.roadmapSteps.filter(
+      s => s.roadmapId !== existingRoadmap.id
+    );
+    state.roadmaps = state.roadmaps.filter(r => r.id !== existingRoadmap.id);
+  }
+
+  const roadmapId = `roadmap-${Date.now()}`;
+  const roadmap: Roadmap = {
+    id: roadmapId,
+    productId,
+    standardId: undefined, // Will be set by API logic if possible, but optional
+    status: 'IN_PROGRESS',
+    completionPercentage: 0,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  const steps = stepsFromApi.map(s => ({
+    ...s,
+    roadmapId, // Override roadmapId from API with our local one
+  }));
+
+  state.roadmaps.push(roadmap);
+  state.roadmapSteps.push(...steps);
+  saveState(state);
+
+  return { roadmap, steps };
+}
+
 export function updateStepStatus(
   stepId: string,
   newStatus: StepStatus

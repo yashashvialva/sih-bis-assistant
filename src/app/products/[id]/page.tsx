@@ -21,6 +21,7 @@ import {
   generateRoadmap,
   updateStepStatus,
   calculateCompletion,
+  saveRoadmapFromApi,
 } from '@/lib/workspace/store';
 import type { Product, Roadmap, RoadmapStep, StepStatus } from '@/lib/types';
 
@@ -53,14 +54,37 @@ export default function ProductWorkspacePage() {
     }
   };
 
-  const handleGenerateRoadmap = () => {
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const handleGenerateRoadmap = async () => {
+    if (!product) return;
+    setIsGenerating(true);
     try {
-      const result = generateRoadmap(productId);
+      const response = await fetch('/api/roadmap', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId: product.id,
+          productName: product.name,
+          productDescription: product.description,
+          productCategory: product.category
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to generate roadmap');
+      const data = await response.json();
+      
+      // Save to local workspace store
+      // Since generateRoadmap in store.ts expects local generation, we need to bypass or update it.
+      const result = saveRoadmapFromApi(product.id, data.steps);
+      
       setRoadmap(result.roadmap);
       setSteps(result.steps);
       setCompletion(0);
     } catch (err) {
       console.error('Failed to generate roadmap:', err);
+    } finally {
+      setIsGenerating(false);
     }
   };
 

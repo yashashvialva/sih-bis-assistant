@@ -4,7 +4,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send, Loader2, MessageSquareText, Sparkles } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { SourcedClaim } from '@/components/trust/SourcedClaim';
-import { searchCorpus, buildSourcedClaims } from '@/lib/rag/vectorStore';
 import type { SourcedClaimData } from '@/lib/types';
 
 interface ChatMessage {
@@ -43,29 +42,41 @@ export default function AssistantPage() {
     setInput('');
     setIsLoading(true);
 
-    // Simulate slight delay for realism
-    await new Promise(resolve => setTimeout(resolve, 800));
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+      });
 
-    // RAG: Search corpus and build sourced claims
-    const searchResults = searchCorpus(query);
-    const claims = buildSourcedClaims(query, searchResults);
+      if (!response.ok) {
+        throw new Error('API request failed');
+      }
 
-    const overallContent =
-      claims.length > 0 && claims[0].confidenceLevel !== 'NO_MATCHING_SOURCE'
-        ? `I found ${claims.length} relevant result(s) in the curated BIS corpus for your query. Each result is tagged with its source and confidence level below.`
-        : 'I could not find matching information in the curated BIS corpus for this query.';
+      const data = await response.json();
+      
+      const assistantMessage: ChatMessage = {
+        id: `msg-${Date.now()}-assistant`,
+        role: 'assistant',
+        content: data.answer || 'No specific answer generated.',
+        claims: data.claims || [],
+        timestamp: new Date(),
+      };
 
-    const assistantMessage: ChatMessage = {
-      id: `msg-${Date.now()}-assistant`,
-      role: 'assistant',
-      content: overallContent,
-      claims,
-      timestamp: new Date(),
-    };
-
-    setMessages(prev => [...prev, assistantMessage]);
-    setIsLoading(false);
-    inputRef.current?.focus();
+      setMessages(prev => [...prev, assistantMessage]);
+    } catch (error) {
+      console.error('Failed to get answer:', error);
+      const errorMessage: ChatMessage = {
+        id: `msg-${Date.now()}-error`,
+        role: 'assistant',
+        content: 'Sorry, I encountered an error while trying to answer your question.',
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+      inputRef.current?.focus();
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

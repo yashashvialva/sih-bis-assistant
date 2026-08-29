@@ -59,48 +59,30 @@ export default function DocumentsPage() {
     if (!fileText || !product) return;
     setIsAnalyzing(true);
 
-    // Simulate analysis delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    try {
+      const roadmap = getRoadmap(productId);
+      const steps = roadmap ? getRoadmapSteps(roadmap.id) : [];
 
-    const roadmap = getRoadmap(productId);
-    const steps = roadmap ? getRoadmapSteps(roadmap.id) : [];
-    const textLower = fileText.toLowerCase();
-
-    // Compare extracted text against roadmap requirements
-    const analysisResults: ComplianceResult[] = steps
-      .filter(s => s.sourceClause) // Only check steps with actual clauses
-      .map(step => {
-        // Simple keyword matching for demo
-        const keywords = step.description
-          .toLowerCase()
-          .split(/\s+/)
-          .filter(w => w.length > 4);
-        const matchCount = keywords.filter(kw =>
-          textLower.includes(kw)
-        ).length;
-        const matchRatio =
-          keywords.length > 0 ? matchCount / keywords.length : 0;
-
-        let assessment: ComplianceResult['assessment'];
-        if (matchRatio > 0.3) assessment = 'LIKELY_ADDRESSED';
-        else if (matchRatio > 0.1) assessment = 'POTENTIALLY_INCOMPLETE';
-        else assessment = 'NO_MATCHING_EVIDENCE';
-
-        return {
-          id: step.id,
-          requirement: step.title,
-          clause: step.sourceClause ?? '',
-          assessment,
-          evidence:
-            matchRatio > 0.1
-              ? `Document text contains ${matchCount} matching terms related to this requirement.`
-              : undefined,
-          confidenceLevel: 'AI_INTERPRETATION' as ConfidenceLevel,
-        };
+      const response = await fetch('/api/document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentText: fileText,
+          roadmapRequirements: steps.map(s => s.title),
+        }),
       });
 
-    setResults(analysisResults);
-    setIsAnalyzing(false);
+      if (!response.ok) {
+        throw new Error('API request failed');
+      }
+
+      const data = await response.json();
+      setResults(data.results || []);
+    } catch (err) {
+      console.error('Failed to analyze document:', err);
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   const ASSESSMENT_LABELS: Record<

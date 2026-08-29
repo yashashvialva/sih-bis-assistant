@@ -15,6 +15,9 @@ CREATE TABLE bis_standards (
     title TEXT NOT NULL,
     product_category VARCHAR(100) NOT NULL,
     status VARCHAR(50) DEFAULT 'ACTIVE',
+    source_type VARCHAR(50) DEFAULT 'official',
+    verification_status VARCHAR(50) DEFAULT 'verified',
+    authoritative BOOLEAN DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -27,6 +30,9 @@ CREATE TABLE bis_chunks (
     content TEXT NOT NULL,
     metadata JSONB DEFAULT '{}'::jsonb,
     embedding VECTOR(768),
+    source_type VARCHAR(50) DEFAULT 'official',
+    verification_status VARCHAR(50) DEFAULT 'verified',
+    authoritative BOOLEAN DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -128,6 +134,9 @@ RETURNS TABLE (
     section_title TEXT,
     content TEXT,
     metadata JSONB,
+    source_type VARCHAR(50),
+    verification_status VARCHAR(50),
+    authoritative BOOLEAN,
     similarity FLOAT
 )
 LANGUAGE plpgsql
@@ -141,6 +150,9 @@ BEGIN
         bc.section_title,
         bc.content,
         bc.metadata,
+        bc.source_type,
+        bc.verification_status,
+        bc.authoritative,
         1 - (bc.embedding <=> query_embedding) AS similarity
     FROM bis_chunks bc
     WHERE 1 - (bc.embedding <=> query_embedding) > match_threshold

@@ -109,7 +109,10 @@ export interface BISChunk {
   clause?: string;
   sectionTitle?: string;
   content: string;
-  metadata: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  authoritative?: boolean;
+  sourceType?: string;
+  verificationStatus?: string;
   embedding?: number[];
   createdAt: string;
 }
