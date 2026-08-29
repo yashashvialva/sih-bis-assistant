@@ -12,6 +12,7 @@ export default function IngestionPage() {
 
   const [inputStandard, setInputStandard] = useState('');
   const [inputProduct, setInputProduct] = useState('');
+  const [inputUrl, setInputUrl] = useState('');
 
   useEffect(() => {
     fetchJobs();
@@ -37,6 +38,7 @@ export default function IngestionPage() {
       const payload = {
         standardNumber: inputStandard || undefined,
         productCategory: inputProduct || undefined,
+        urls: inputUrl ? [inputUrl] : undefined,
       };
       
       const res = await fetch('/api/admin/ingest', {
@@ -52,6 +54,7 @@ export default function IngestionPage() {
       
       setInputStandard('');
       setInputProduct('');
+      setInputUrl('');
       fetchJobs();
     } catch (err: any) {
       alert(`Error: ${err.message}`);
@@ -93,10 +96,20 @@ export default function IngestionPage() {
             />
           </div>
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Direct URL (Optional)</label>
+            <input 
+              type="text" 
+              className="input w-full" 
+              placeholder="e.g., https://law.resource.org/..." 
+              value={inputUrl}
+              onChange={e => setInputUrl(e.target.value)}
+            />
+          </div>
+          <div className="md:col-span-3">
             <button 
               type="submit" 
               className="btn btn-primary w-full flex justify-center items-center gap-2"
-              disabled={isStarting || (!inputStandard && !inputProduct)}
+              disabled={isStarting || (!inputStandard && !inputProduct && !inputUrl)}
             >
               {isStarting ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
               Run Pipeline

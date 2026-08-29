@@ -8,24 +8,28 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
-
-/**
- * Whether Supabase is configured with real credentials.
- * When false, the application uses local mock data instead.
- */
-export const isSupabaseConfigured =
-  supabaseUrl.length > 0 && supabaseAnonKey.length > 0;
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY && !process.env.SUPABASE_SERVICE_ROLE_KEY.includes('placeholder')
+  ? process.env.SUPABASE_SERVICE_ROLE_KEY
+  : anonKey;
 
 let _supabase: SupabaseClient | null = null;
+if (url.length > 0 && anonKey.length > 0) {
+  _supabase = createClient(url, anonKey);
+}
+
+let _adminSupabase: SupabaseClient | null = null;
+if (url.length > 0 && serviceKey.length > 0) {
+  _adminSupabase = createClient(url, serviceKey);
+}
 
 export function getSupabase(): SupabaseClient | null {
-  if (!isSupabaseConfigured) return null;
-  if (!_supabase) {
-    _supabase = createClient(supabaseUrl, supabaseAnonKey);
-  }
   return _supabase;
+}
+
+export function getAdminSupabase(): SupabaseClient | null {
+  return _adminSupabase;
 }
 
 export { _supabase as supabase };

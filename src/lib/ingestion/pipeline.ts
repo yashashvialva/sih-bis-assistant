@@ -5,7 +5,7 @@
  * Discovery → Fetch → Extract → Verify → Chunk → Embed → Store
  */
 
-import { supabase } from '../db/supabaseClient';
+import { getAdminSupabase } from '../db/supabaseClient';
 import { getEmbedding } from '../ai/embedding';
 import { DEFAULT_TRUSTED_SOURCES, determineVerificationStatus } from './sourceRegistry';
 import { discoverSources } from './discovery';
@@ -19,6 +19,7 @@ export async function runIngestionPipeline(
   input: IngestionInput,
   triggerType: IngestionJob['triggerType']
 ): Promise<string> {
+  const supabase = getAdminSupabase();
   if (!supabase) throw new Error('Database connection required for ingestion');
 
   // 1. Create Job Record
@@ -54,6 +55,7 @@ export async function runIngestionPipeline(
 // ─── Pipeline Execution ─────────────────────────────────
 
 async function processPipeline(jobId: string, input: IngestionInput) {
+  const supabase = getAdminSupabase();
   const stats = {
     sources_discovered: 0,
     sources_fetched: 0,

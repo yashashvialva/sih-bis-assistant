@@ -42,5 +42,22 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ jobs: data });
+  const mappedJobs = data.map((job: any) => ({
+    id: job.id,
+    status: job.status,
+    triggerType: job.trigger_type,
+    startedAt: job.started_at,
+    completedAt: job.completed_at,
+    sourcesDiscovered: job.sources_discovered,
+    sourcesFetched: job.sources_fetched,
+    sourcesRejected: job.sources_rejected,
+    documentsCreated: job.documents_created,
+    documentsUpdated: job.documents_updated,
+    chunksCreated: job.chunks_created,
+    embeddingsGenerated: job.embeddings_generated,
+    errors: job.errors,
+    log: job.log,
+  }));
+
+  return NextResponse.json({ jobs: mappedJobs });
 }

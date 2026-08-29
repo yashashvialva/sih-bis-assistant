@@ -56,6 +56,14 @@ export const DEFAULT_TRUSTED_SOURCES: Omit<TrustedSource, 'id' | 'createdAt' | '
     enabled: true,
     verificationPolicy: 'REQUIRES_REVIEW',
   },
+  {
+    name: 'Public Resource (Indian Standards)',
+    baseUrl: 'https://law.resource.org',
+    domain: 'law.resource.org',
+    sourceType: 'TRUSTED_SECONDARY',
+    enabled: true,
+    verificationPolicy: 'REQUIRES_REVIEW',
+  },
 ];
 
 // ─── Domain Validation ──────────────────────────────────
