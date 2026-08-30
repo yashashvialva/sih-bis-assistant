@@ -222,3 +222,60 @@ CREATE POLICY "BIS standards are readable by all"
 CREATE POLICY "BIS chunks are readable by all"
     ON bis_chunks FOR SELECT
     USING (true);
+
+-- 🗄️ 7. Verified Testing Laboratories 🗄️
+
+CREATE TABLE laboratories (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(255) NOT NULL,
+    address TEXT NOT NULL,
+    city VARCHAR(100),
+    state VARCHAR(100),
+    pincode VARCHAR(20),
+    laboratory_type VARCHAR(100), -- 'Govt', 'Private', 'In-house'
+    latitude FLOAT,
+    longitude FLOAT,
+    accreditation_number VARCHAR(100),
+    contact TEXT,
+    website VARCHAR(255),
+    source_url TEXT NOT NULL,
+    source_type VARCHAR(50) DEFAULT 'NABL', -- 'NABL', 'BIS', 'Demo'
+    verification_status VARCHAR(50) DEFAULT 'DISCOVERED', -- 'DISCOVERED', 'VERIFIED', 'ACCREDITED', 'BIS_RECOGNIZED'
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- RPC for nearby labs using Haversine formula
+CREATE OR REPLACE FUNCTION get_nearby_labs(
+    user_lat FLOAT,
+    user_lon FLOAT,
+    radius_km FLOAT,
+    lab_type_filter TEXT DEFAULT NULL
+)
+RETURNS TABLE (
+    id UUID,
+    name VARCHAR(255),
+    address TEXT,
+    city VARCHAR(100),
+    state VARCHAR(100),
+    laboratory_type VARCHAR(100),
+    accreditation_number VARCHAR(100),
+    distance_km FLOAT,
+    source_url TEXT,
+    verification_status VARCHAR(50)
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        l.id, l.name, l.address, l.city, l.state, l.laboratory_type, l.accreditation_number,
+        ( 6371 * acos( cos( radians(user_lat) ) * cos( radians( l.latitude ) ) * cos( radians( l.longitude ) - radians(user_lon) ) + sin( radians(user_lat) ) * sin( radians( l.latitude ) ) ) ) AS distance_km,
+        l.source_url, l.verification_status
+    FROM laboratories l
+    WHERE l.verification_status IN ('VERIFIED', 'ACCREDITED', 'BIS_RECOGNIZED')
+      AND (lab_type_filter IS NULL OR l.laboratory_type = lab_type_filter)
+      AND ( 6371 * acos( cos( radians(user_lat) ) * cos( radians( l.latitude ) ) * cos( radians( l.longitude ) - radians(user_lon) ) + sin( radians(user_lat) ) * sin( radians( l.latitude ) ) ) ) <= radius_km
+    ORDER BY distance_km ASC;
+END;
+$$;
