@@ -10,19 +10,23 @@ An intelligent, AI-powered compliance and discovery assistant designed for the B
   - `VERIFIED`: Human-reviewed for accuracy.
   - `AUTHORITATIVE`: Approved as a primary technical standard corpus.
 - **Product Compliance Workspace**: Allows manufacturers to map products (e.g. Electric Kettles) to authoritative BIS standards and dynamically generates testing/compliance roadmaps.
-- **Human-in-the-Loop OCR Verification**: Upload a photo of a BIS mark, extract the CM/L or R-number using local `tesseract.js` OCR, and securely verify it by parsing official government portal results with AI.
+- **Human-in-the-Loop OCR Verification**: 
+  - **Live In-App Camera**: Capture BIS marks directly from the browser using `navigator.mediaDevices` with smart fallback for mobile native cameras.
+  - **Local OCR Extraction**: Extract CM/L or R-numbers using local `tesseract.js` OCR.
+  - **AI Verification**: Securely verify extracted numbers by parsing official government portal results with AI.
 - **RAG-Powered Chat Assistant**: Uses local embeddings (`bge-base-en-v1.5`) and Groq LLMs (`qwen/qwen3.8-27b`) to answer compliance questions strictly using authorized standard chunks.
+- **Multilingual Support**: Real-time localized interface supporting English, Hindi (हिंदी), Marathi (मराठी), Telugu (తెలుగు), Tamil (தமிழ்), Kannada (ಕನ್ನಡ), and Malayalam (മലയാളം).
 - **Admin Ingestion Pipeline**: A dedicated dashboard for administrators to monitor, parse, and ingest PDF standards into vector chunks.
 - **Vector Database**: Fully integrated with Supabase `pgvector` for semantic similarity search.
 
 ## Tech Stack
 
-- **Framework**: [Next.js 15+](https://nextjs.org/) (App Router)
+- **Framework**: [Next.js 15+](https://nextjs.org/) (App Router, Turbopack)
 - **Database & Vector Store**: [Supabase](https://supabase.com/) with `pgvector`
 - **Embeddings**: `Xenova/bge-base-en-v1.5` (768-dimensional local embeddings via Transformers.js)
 - **LLM Provider**: [Groq](https://groq.com/) (Ultra-fast inference)
 - **Styling**: Tailwind CSS & Framer Motion
-- **Parsing**: `pdf-parse`
+- **Parsing & OCR**: `pdf-parse`, `tesseract.js`
 
 ## Getting Started
 
@@ -74,19 +78,13 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 - `/src/app/admin`: Admin dashboard for document discovery and ingestion.
 - `/src/app/assistant`: User-facing RAG chat assistant for compliance queries.
 - `/src/app/products`: The Product Compliance Workspace for manufacturers.
-- `/src/app/verify`: Human-in-the-loop OCR verification flow for consumers and inspectors.
+- `/src/app/verify`: Human-in-the-loop OCR verification flow with live camera access.
+- `/src/app/labs`: Geographic mapping of nearby BIS testing labs.
 - `/src/lib/ai`: AI configuration, prompt engineering, and LLM clients.
 - `/src/lib/rag`: Vector embedding generation and similarity search logic.
 - `/src/lib/ingestion`: Document parsing, chunking, and pipeline management.
 - `/src/lib/db`: Database schemas and Supabase clients.
-
-## Demo Walkthrough
-
-1. Go to `/admin/documents` to view the discovery queue.
-2. Select a `PENDING_REVIEW` candidate and click **Verify & Ingest**.
-3. Watch the pipeline parse the PDF, generate embeddings, and insert them into Supabase.
-4. Go to `/assistant` and ask a question related to the ingested standard.
-5. The assistant will retrieve the relevant chunks and cite the specific standard in its answer.
+- `/src/lib/i18n`: Static dictionary configurations for multilingual localization.
 
 ## License
 
