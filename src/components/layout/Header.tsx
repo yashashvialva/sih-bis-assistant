@@ -94,19 +94,25 @@ export function Header() {
             })}
           </nav>
 
-          {/* Language Toggle + Mobile Menu */}
+          {/* Language Dropdown + Mobile Menu */}
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setLanguage(language === 'en' ? 'hi' : 'en')}
-              className="btn btn-ghost btn-sm"
-              aria-label="Toggle language"
-              data-testid="language-toggle"
-            >
-              <Globe size={16} />
-              <span className="text-xs font-semibold">
-                {language === 'en' ? 'HI' : 'EN'}
-              </span>
-            </button>
+            <div className="relative flex items-center">
+              <Globe size={16} className="absolute left-2 text-muted-foreground pointer-events-none" />
+              <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value as any)}
+                className="pl-7 pr-8 py-1.5 text-xs font-semibold bg-transparent border border-border rounded-md appearance-none focus:outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer hover:bg-muted/30 transition-colors"
+                aria-label="Select language"
+              >
+                <option value="en">English</option>
+                <option value="hi">हिंदी (Hindi)</option>
+                <option value="mr">मराठी (Marathi)</option>
+                <option value="te">తెలుగు (Telugu)</option>
+                <option value="ta">தமிழ் (Tamil)</option>
+                <option value="kn">ಕನ್ನಡ (Kannada)</option>
+                <option value="ml">മലയാളം (Malayalam)</option>
+              </select>
+            </div>
 
             <button
               onClick={() => setMobileOpen(!mobileOpen)}

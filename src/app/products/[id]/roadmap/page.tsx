@@ -157,20 +157,20 @@ export default function RoadmapPage() {
             {t('roadmap.title')}
           </h1>
           <p className="text-sm text-muted-foreground">
-            Structured compliance pathway for <strong>{product.name}</strong> ({product.category})
+            {t('roadmap.pathway')} <strong>{product.name}</strong> ({product.category})
           </p>
         </div>
         
         {totalSteps > 0 && (
           <div className="flex flex-col items-end min-w-[200px]">
-            <span className="text-sm font-semibold mb-2">{progressPercentage}% Complete</span>
+            <span className="text-sm font-semibold mb-2">{progressPercentage}% {t('roadmap.complete')}</span>
             <div className="w-full h-3 bg-muted rounded-full overflow-hidden">
               <div 
                 className="h-full bg-emerald-500 transition-all duration-500 ease-out"
                 style={{ width: `${progressPercentage}%` }}
               />
             </div>
-            <span className="text-xs text-muted-foreground mt-2">{completedSteps} of {totalSteps} tasks completed</span>
+            <span className="text-xs text-muted-foreground mt-2">{completedSteps} of {totalSteps} {t('roadmap.tasksCompleted')}</span>
           </div>
         )}
       </div>
@@ -251,7 +251,7 @@ export default function RoadmapPage() {
                           <div className="flex items-center gap-2 flex-wrap mb-1">
                             <span className="text-base">{typeInfo.emoji}</span>
                             <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                              Step {step.orderIndex} — {typeInfo.label}
+                              {t('roadmap.step')} {step.orderIndex} — {typeInfo.label}
                             </span>
                           </div>
                           <h3 className={`text-base font-semibold ${isCompleted ? 'text-muted-foreground line-through decoration-muted-foreground/50' : 'text-foreground'}`}>

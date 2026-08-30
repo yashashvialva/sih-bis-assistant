@@ -168,7 +168,7 @@ export default function ProductWorkspacePage() {
       <div className="mb-8">
         <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
           <FileText size={20} className="text-primary" />
-          Applicable BIS Standards
+          {t('products.applicableStandards')}
         </h2>
         {mappedStandards.length > 0 ? (
           <div className="grid gap-3">
@@ -198,7 +198,7 @@ export default function ProductWorkspacePage() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold flex items-center gap-2">
             <Map size={20} className="text-primary" />
-            Compliance Roadmap
+            {t('roadmap.title')}
           </h2>
           {!roadmap && mappedStandards.length > 0 && (
             <button
@@ -237,7 +237,7 @@ export default function ProductWorkspacePage() {
           <div className="card p-6 border shadow-sm text-center">
             <div className="bg-emerald-50 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400 p-4 rounded-lg mb-6 flex items-center justify-center gap-3 border border-emerald-100 dark:border-emerald-800/30">
               <CheckCircle2 size={24} />
-              <h4 className="font-bold text-lg">Evidence-Backed Roadmap Ready</h4>
+              <h4 className="font-bold text-lg">{t('roadmap.ready')}</h4>
             </div>
             
             <p className="text-muted-foreground mb-6">
@@ -249,7 +249,7 @@ export default function ProductWorkspacePage() {
               className="btn btn-primary px-8 py-3 shadow-sm text-base inline-flex items-center gap-2"
             >
               <Map size={18} />
-              Open Interactive Roadmap & To-Do List
+              {t('roadmap.openInteractive')}
             </Link>
           </div>
         )}

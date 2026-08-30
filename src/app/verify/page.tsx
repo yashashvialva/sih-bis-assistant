@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Camera,
   Upload,
@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 
-type VerifyStep = 'HOME' | 'CAPTURE' | 'EXTRACTING' | 'CONFIRM' | 'UNAVAILABLE_INFO' | 'ANALYZING' | 'RESULT';
+type VerifyStep = 'HOME' | 'CAMERA_VIEW' | 'CAMERA_PERMISSION_DENIED' | 'CAPTURE' | 'EXTRACTING' | 'CONFIRM' | 'UNAVAILABLE_INFO' | 'ANALYZING' | 'RESULT';
 type InputMethod = 'PHOTO' | 'UPLOAD' | 'MANUAL';
 
 export default function VerifyPage() {
@@ -37,6 +37,18 @@ export default function VerifyPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  useEffect(() => {
+    // Cleanup camera stream on unmount
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
 
   const resetState = () => {
     setStep('HOME');
@@ -47,13 +59,68 @@ export default function VerifyPage() {
     setOfficialResult(null);
     setAiExplanation(null);
     setError(null);
+    stopCamera();
+  };
+
+  // ─── 0. CAMERA LOGIC ───────────────────────────────────────
+  const startCamera = async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      // Fallback for non-secure contexts (HTTP) or older browsers
+      cameraInputRef.current?.click();
+      return;
+    }
+
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'environment' } 
+      });
+      streamRef.current = mediaStream;
+      setStep('CAMERA_VIEW');
+      
+      // Small timeout to ensure video element is rendered before attaching stream
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
+        }
+      }, 50);
+    } catch (err: any) {
+      console.error(err);
+      if (err.name === 'NotAllowedError' || err.name === 'NotFoundError') {
+        setStep('CAMERA_PERMISSION_DENIED');
+      } else {
+        setError('Could not access camera. Please make sure you have granted permission.');
+      }
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+  };
+
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      stopCamera();
+      const file = new File([blob], "capture.jpg", { type: "image/jpeg" });
+      processImageFile(file, 'PHOTO');
+    }, 'image/jpeg', 0.9);
   };
 
   // ─── 1. FILE & CAMERA HANDLING ──────────────────────────────
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, method: InputMethod) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
+  const processImageFile = async (file: File, method: InputMethod) => {
     setInputType(method);
     setStep('EXTRACTING');
     setError(null);
@@ -85,6 +152,12 @@ export default function VerifyPage() {
       setError(err.message);
       setStep('HOME');
     }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, method: InputMethod) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    processImageFile(file, method);
   };
 
   // ─── 2. MANUAL ENTRY ───────────────────────────────────────
@@ -150,9 +223,9 @@ export default function VerifyPage() {
   if (step === 'HOME') {
     return (
       <div className="max-w-2xl mx-auto px-4 py-12 animate-fade-in text-center">
-        <h1 className="text-3xl font-bold mb-3 text-foreground">Verify BIS Authenticity</h1>
+        <h1 className="text-3xl font-bold mb-3 text-foreground">{t('verify.heading')}</h1>
         <p className="text-muted-foreground mb-10">
-          How would you like to verify a product's BIS licence?
+          {t('verify.subtitle')}
         </p>
 
         {error && (
@@ -164,11 +237,11 @@ export default function VerifyPage() {
 
         <div className="grid sm:grid-cols-2 gap-4 mb-8">
           <input type="file" accept="image/*" capture="environment" className="hidden" ref={cameraInputRef} onChange={(e) => handleFileChange(e, 'PHOTO')} />
-          <button onClick={() => cameraInputRef.current?.click()} className="card p-8 flex flex-col items-center justify-center gap-4 hover:border-primary hover:shadow-md transition-all group">
+          <button onClick={startCamera} className="card p-8 flex flex-col items-center justify-center gap-4 hover:border-primary hover:shadow-md transition-all group">
             <div className="w-16 h-16 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
               <Camera size={28} />
             </div>
-            <div className="font-semibold text-lg">Take Photo</div>
+            <div className="font-semibold text-lg">{t('verify.takePhoto')}</div>
             <p className="text-xs text-muted-foreground text-center px-4">Use your device camera to snap a photo of the product package or BIS mark.</p>
           </button>
 
@@ -177,26 +250,56 @@ export default function VerifyPage() {
             <div className="w-16 h-16 rounded-full bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
               <Upload size={28} />
             </div>
-            <div className="font-semibold text-lg">Upload Photo</div>
+            <div className="font-semibold text-lg">{t('verify.uploadPhoto')}</div>
             <p className="text-xs text-muted-foreground text-center px-4">Upload an existing image of a label containing a CM/L or R number.</p>
           </button>
         </div>
 
         <div className="relative">
           <div className="absolute inset-0 flex items-center"><div className="w-full border-t"></div></div>
-          <div className="relative flex justify-center text-sm"><span className="px-2 bg-background text-muted-foreground">Or</span></div>
+          <div className="relative flex justify-center text-sm"><span className="px-2 bg-background text-muted-foreground">{t('verify.or')}</span></div>
         </div>
 
         <form onSubmit={handleManualSubmit} className="mt-8 flex gap-3 max-w-md mx-auto">
           <div className="relative flex-1">
             <Keyboard className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-            <input type="text" required placeholder="Enter CM/L or R Number manually..." className="input w-full pl-10 bg-background" value={licenceNumber} onChange={e => setLicenceNumber(e.target.value)} />
+            <input type="text" required placeholder={t('verify.placeholder')} className="input w-full pl-10 bg-background" value={licenceNumber} onChange={e => setLicenceNumber(e.target.value)} />
           </div>
-          <button type="submit" className="btn btn-primary font-medium px-6 shadow-sm">Proceed</button>
+          <button type="submit" className="btn btn-primary font-medium px-6 shadow-sm">{t('verify.proceed')}</button>
         </form>
       </div>
     );
   }
+
+  if (step === 'CAMERA_PERMISSION_DENIED') {
+    return (
+      <div className="max-w-md mx-auto px-4 py-16 animate-fade-in text-center">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-destructive/10 text-destructive mb-6">
+          <Camera size={32} />
+        </div>
+        <h2 className="text-2xl font-bold mb-2">Camera Access Denied</h2>
+        <p className="text-muted-foreground mb-6">
+          We need camera access to scan the BIS label. Please allow camera permissions in your browser settings to continue.
+        </p>
+        <div className="bg-background/80 border p-5 rounded-lg mb-8 text-sm text-left shadow-sm">
+          <h3 className="font-semibold mb-3 flex items-center gap-2">
+            <AlertTriangle size={16} className="text-orange-500" />
+            How to allow access:
+          </h3>
+          <ul className="list-disc pl-5 space-y-3 text-muted-foreground">
+            <li><strong>On Phone:</strong> Tap the <code className="bg-muted px-1 py-0.5 rounded">Aa</code> or lock icon in your address bar, go to Website Settings, and allow Camera.</li>
+            <li><strong>On Laptop:</strong> Click the lock or camera icon in the left side of your address bar and toggle Camera to Allow.</li>
+          </ul>
+        </div>
+        <div className="flex gap-3">
+          <button onClick={resetState} className="btn bg-muted text-foreground flex-1 font-medium">Back</button>
+          <button onClick={startCamera} className="btn btn-primary flex-1 font-medium shadow-sm">Try Again</button>
+        </div>
+      </div>
+    );
+  }
+
+
 
   if (step === 'EXTRACTING' || step === 'ANALYZING') {
     return (
