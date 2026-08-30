@@ -322,3 +322,32 @@ CREATE POLICY ""Users can manage their own roadmap steps""
             WHERE p.user_id = '00000000-0000-0000-0000-000000000000' OR p.user_id = auth.uid()
         )
     );
+
+-- 9. Verification Audit Logging
+
+CREATE TABLE bis_verification_events (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    input_type VARCHAR(50) NOT NULL,
+    licence_number VARCHAR(100),
+    extracted_text TEXT,
+    extraction_confidence FLOAT,
+    verification_status VARCHAR(50) NOT NULL,
+    product_name VARCHAR(255),
+    manufacturer VARCHAR(255),
+    standard_number VARCHAR(100),
+    validity_date DATE,
+    official_source_url TEXT,
+    official_response TEXT,
+    ai_explanation TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE bis_verification_events ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY ""Verification events are readable by all""
+    ON bis_verification_events FOR SELECT
+    USING (true);
+
+CREATE POLICY ""Anyone can insert verification events""
+    ON bis_verification_events FOR INSERT
+    WITH CHECK (true);

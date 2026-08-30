@@ -9,6 +9,8 @@ An intelligent, AI-powered compliance and discovery assistant designed for the B
   - `OFFICIAL_SOURCE`: Discovered from a government domain.
   - `VERIFIED`: Human-reviewed for accuracy.
   - `AUTHORITATIVE`: Approved as a primary technical standard corpus.
+- **Product Compliance Workspace**: Allows manufacturers to map products (e.g. Electric Kettles) to authoritative BIS standards and dynamically generates testing/compliance roadmaps.
+- **Human-in-the-Loop OCR Verification**: Upload a photo of a BIS mark, extract the CM/L or R-number using local `tesseract.js` OCR, and securely verify it by parsing official government portal results with AI.
 - **RAG-Powered Chat Assistant**: Uses local embeddings (`bge-base-en-v1.5`) and Groq LLMs (`qwen/qwen3.8-27b`) to answer compliance questions strictly using authorized standard chunks.
 - **Admin Ingestion Pipeline**: A dedicated dashboard for administrators to monitor, parse, and ingest PDF standards into vector chunks.
 - **Vector Database**: Fully integrated with Supabase `pgvector` for semantic similarity search.
@@ -71,6 +73,8 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 - `/src/app/admin`: Admin dashboard for document discovery and ingestion.
 - `/src/app/assistant`: User-facing RAG chat assistant for compliance queries.
+- `/src/app/products`: The Product Compliance Workspace for manufacturers.
+- `/src/app/verify`: Human-in-the-loop OCR verification flow for consumers and inspectors.
 - `/src/lib/ai`: AI configuration, prompt engineering, and LLM clients.
 - `/src/lib/rag`: Vector embedding generation and similarity search logic.
 - `/src/lib/ingestion`: Document parsing, chunking, and pipeline management.
