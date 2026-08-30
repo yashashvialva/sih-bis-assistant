@@ -279,3 +279,46 @@ BEGIN
     ORDER BY distance_km ASC;
 END;
 $$;
+
+-- 8. Product Standard Mappings
+
+CREATE TABLE product_standard_mappings (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    product_category VARCHAR(100) NOT NULL UNIQUE,
+    standard_number VARCHAR(100) NOT NULL,
+    source_document_id UUID REFERENCES source_documents(id) ON DELETE CASCADE,
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE product_standard_mappings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY ""Product standard mappings are readable by all""
+    ON product_standard_mappings FOR SELECT
+    USING (true);
+
+-- Update RLS for Products to allow demo user
+DROP POLICY IF EXISTS ""Users can manage their own products"" ON products;
+CREATE POLICY ""Users can manage their own products""
+    ON products FOR ALL
+    USING (user_id = '00000000-0000-0000-0000-000000000000' OR auth.uid() = user_id);
+
+DROP POLICY IF EXISTS ""Users can manage their own roadmaps"" ON roadmaps;
+CREATE POLICY ""Users can manage their own roadmaps""
+    ON roadmaps FOR ALL
+    USING (
+        product_id IN (
+            SELECT id FROM products WHERE user_id = '00000000-0000-0000-0000-000000000000' OR user_id = auth.uid()
+        )
+    );
+
+DROP POLICY IF EXISTS ""Users can manage their own roadmap steps"" ON roadmap_steps;
+CREATE POLICY ""Users can manage their own roadmap steps""
+    ON roadmap_steps FOR ALL
+    USING (
+        roadmap_id IN (
+            SELECT r.id FROM roadmaps r
+            JOIN products p ON r.product_id = p.id
+            WHERE p.user_id = '00000000-0000-0000-0000-000000000000' OR p.user_id = auth.uid()
+        )
+    );

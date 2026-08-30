@@ -85,26 +85,7 @@ export default function LabsPage() {
       
       const data = await res.json();
       setLabs(data.labs || []);
-      
-      // If we searched nearby but found nothing, switch to manual search view implicitly
-      if (lat && lon && (!data.labs || data.labs.length === 0)) {
-        setSearchMode('manual');
-        // We MUST fetch the fallback list now, otherwise the screen remains empty
-        const fallbackPayload: any = { radiusKm: 50 };
-        if (state) fallbackPayload.state = state;
-        if (type) fallbackPayload.laboratoryType = type;
-        
-        const fallbackRes = await fetch('/api/labs/nearby', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(fallbackPayload)
-        });
-        
-        if (fallbackRes.ok) {
-          const fallbackData = await fallbackRes.json();
-          setLabs(fallbackData.labs || []);
-        }
-      }
+
 
     } catch (err: any) {
       setError(err.message || 'An error occurred.');
@@ -175,7 +156,6 @@ export default function LabsPage() {
                 setLocationFilter(e.target.value);
                 setSearchMode('manual');
               }}
-              disabled={searchMode === 'nearby'}
             >
               <option value="">{searchMode === 'nearby' ? 'Current Location (Nearby)' : 'All States'}</option>
               {states.map(state => (
@@ -206,10 +186,10 @@ export default function LabsPage() {
             </select>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2">
             <button 
               onClick={triggerNearbySearch}
-              className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors flex items-center gap-2 border
+              className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors flex items-center justify-center gap-2 border h-10
                 ${searchMode === 'nearby' 
                   ? 'bg-primary text-primary-foreground border-primary' 
                   : 'bg-background hover:bg-muted text-foreground'}`}
@@ -217,6 +197,11 @@ export default function LabsPage() {
               <Compass size={16} />
               Use My Location
             </button>
+            {searchMode === 'nearby' && userLocation && (
+              <span className="text-[10px] text-muted-foreground text-center">
+                Lat: {userLocation.lat.toFixed(4)}, Lon: {userLocation.lon.toFixed(4)}
+              </span>
+            )}
           </div>
 
         </div>
@@ -301,14 +286,28 @@ export default function LabsPage() {
                   </div>
 
                   {lab.source_url && (
-                    <div className="mt-4 pt-3 border-t">
+                    <div className="mt-4 pt-3 border-t flex flex-wrap items-center gap-4">
                       <a 
                         href={lab.source_url} 
                         target="_blank" 
                         rel="noreferrer"
-                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 font-medium"
                       >
                         Verify on {lab.source_type} Portal &rarr;
+                      </a>
+                      
+                      <a 
+                        href={
+                          lab.latitude && lab.longitude 
+                            ? `https://www.google.com/maps/dir/?api=1&destination=${lab.latitude},${lab.longitude}`
+                            : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lab.name + ' ' + lab.address + ' ' + lab.city)}`
+                        }
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="text-xs text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 font-medium ml-auto"
+                      >
+                        <Map size={12} />
+                        Get Directions
                       </a>
                     </div>
                   )}

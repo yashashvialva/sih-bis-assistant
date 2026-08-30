@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
@@ -8,57 +8,49 @@ import {
   Map,
   FileText,
   CheckCircle2,
-  Circle,
-  Clock,
   Package,
+  AlertTriangle,
+  Info,
+  ShieldCheck
 } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n/useTranslation';
-import { ConfidenceTag } from '@/components/trust/SourcedClaim';
-import {
-  getProduct,
-  getRoadmap,
-  getRoadmapSteps,
-  generateRoadmap,
-  updateStepStatus,
-  calculateCompletion,
-  saveRoadmapFromApi,
-} from '@/lib/workspace/store';
-import type { Product, Roadmap, RoadmapStep, StepStatus } from '@/lib/types';
 
 export default function ProductWorkspacePage() {
   const params = useParams();
   const productId = params.id as string;
   const { t } = useTranslation();
 
-  const [product, setProduct] = useState<Product | null>(() => getProduct(productId) ?? null);
-  const [roadmap, setRoadmap] = useState<Roadmap | null>(() => getRoadmap(productId) ?? null);
-  const [steps, setSteps] = useState<RoadmapStep[]>(() => {
-    const rm = getRoadmap(productId);
-    return rm ? getRoadmapSteps(rm.id) : [];
-  });
-  const [completion, setCompletion] = useState(() => {
-    const rm = getRoadmap(productId);
-    return rm ? calculateCompletion(rm.id) : 0;
-  });
+  const [product, setProduct] = useState<any>(null);
+  const [mappedStandards, setMappedStandards] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const loadData = () => {
-    const p = getProduct(productId);
-    setProduct(p ?? null);
+  const [roadmap, setRoadmap] = useState<any>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [roadmapError, setRoadmapError] = useState<string | null>(null);
 
-    const rm = getRoadmap(productId);
-    if (rm) {
-      setRoadmap(rm);
-      const rmSteps = getRoadmapSteps(rm.id);
-      setSteps(rmSteps);
-      setCompletion(calculateCompletion(rm.id));
+  useEffect(() => {
+    fetchProductDetails();
+  }, [productId]);
+
+  const fetchProductDetails = async () => {
+    try {
+      const res = await fetch(`/api/products/${productId}`);
+      if (!res.ok) throw new Error('Failed to fetch product details');
+      const data = await res.json();
+      setProduct(data.product);
+      setMappedStandards(data.mappedStandards || []);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
-
-  const [isGenerating, setIsGenerating] = useState(false);
 
   const handleGenerateRoadmap = async () => {
     if (!product) return;
     setIsGenerating(true);
+    setRoadmapError(null);
     try {
       const response = await fetch('/api/roadmap', {
         method: 'POST',
@@ -71,35 +63,37 @@ export default function ProductWorkspacePage() {
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to generate roadmap');
       const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to generate roadmap');
+      }
       
-      // Save to local workspace store
-      // Since generateRoadmap in store.ts expects local generation, we need to bypass or update it.
-      const result = saveRoadmapFromApi(product.id, data.steps);
-      
-      setRoadmap(result.roadmap);
-      setSteps(result.steps);
-      setCompletion(0);
-    } catch (err) {
+      setRoadmap(data.roadmap);
+    } catch (err: any) {
       console.error('Failed to generate roadmap:', err);
+      setRoadmapError(err.message);
     } finally {
       setIsGenerating(false);
     }
   };
 
-  const handleStepToggle = (stepId: string, currentStatus: StepStatus) => {
-    const newStatus: StepStatus =
-      currentStatus === 'COMPLETED' ? 'PENDING' : 'COMPLETED';
-    updateStepStatus(stepId, newStatus);
-    loadData();
-  };
-
-  if (!product) {
+  if (loading) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <p style={{ color: 'var(--color-text-muted)' }}>Product not found.</p>
-        <Link href="/products" className="btn btn-secondary mt-4">
+      <div className="max-w-4xl mx-auto px-4 py-8 text-center animate-fade-in">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+        <p className="text-muted-foreground">Loading workspace...</p>
+      </div>
+    );
+  }
+
+  if (error || !product) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8 animate-fade-in">
+        <div className="card p-8 text-center bg-destructive/10 border-destructive/20">
+          <AlertTriangle size={32} className="mx-auto mb-3 text-destructive" />
+          <p className="text-destructive font-medium">{error || 'Product not found.'}</p>
+        </div>
+        <Link href="/products" className="btn btn-secondary mt-6">
           <ArrowLeft size={14} />
           Back to Products
         </Link>
@@ -107,196 +101,168 @@ export default function ProductWorkspacePage() {
     );
   }
 
-  const STATUS_ICON: Record<StepStatus, React.ReactNode> = {
-    COMPLETED: (
-      <CheckCircle2
-        size={20}
-        style={{ color: 'var(--color-verified-500)' }}
-      />
-    ),
-    IN_PROGRESS: (
-      <Clock
-        size={20}
-        style={{ color: 'var(--color-interpretation-500)' }}
-      />
-    ),
-    PENDING: (
-      <Circle
-        size={20}
-        style={{ color: 'var(--color-text-muted)' }}
-      />
-    ),
+  const renderRoadmapSection = (title: string, items: any[]) => {
+    if (!items || items.length === 0) return null;
+    return (
+      <div className="mb-6">
+        <h3 className="font-semibold text-lg mb-3 border-b pb-2">{title}</h3>
+        <div className="space-y-4">
+          {items.map((item, idx) => (
+            <div key={idx} className="p-4 rounded-lg bg-muted/40 border">
+              <div className="flex justify-between items-start mb-2">
+                <span className="font-medium text-foreground">{item.requirement}</span>
+                {item.source_standard && (
+                  <span className="text-xs font-semibold bg-primary/10 text-primary px-2 py-0.5 rounded ml-2 whitespace-nowrap">
+                    {item.source_standard} {item.clause ? `| ${item.clause}` : ''}
+                  </span>
+                )}
+              </div>
+              {item.evidence && (
+                <div className="text-sm text-muted-foreground bg-background p-3 rounded border border-dashed mt-2">
+                  <span className="font-semibold block mb-1">Source Evidence:</span>
+                  {item.evidence}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 animate-fade-in">
-      {/* Breadcrumb */}
       <Link
         href="/products"
-        className="inline-flex items-center gap-1.5 text-sm mb-6"
-        style={{ color: 'var(--color-text-muted)' }}
+        className="inline-flex items-center gap-1.5 text-sm mb-6 text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft size={14} />
         {t('general.back')} to Products
       </Link>
 
       {/* Product Header */}
-      <div className="card p-6 mb-6">
-        <div className="flex items-start gap-4">
-          <div
-            className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{
-              background:
-                'linear-gradient(135deg, var(--color-primary-500), var(--color-primary-600))',
-            }}
-          >
-            <Package size={22} color="white" />
+      <div className="card p-6 mb-8 border shadow-sm">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+          <div className="w-16 h-16 rounded-xl flex items-center justify-center flex-shrink-0 bg-primary/10 text-primary">
+            <Package size={28} />
           </div>
           <div className="flex-1">
-            <h1
-              className="text-2xl font-bold mb-1"
-              style={{ color: 'var(--color-text-primary)' }}
-            >
+            <h1 className="text-3xl font-bold mb-2 text-foreground">
               {product.name}
             </h1>
-            <p
-              className="text-sm mb-1"
-              style={{ color: 'var(--color-text-secondary)' }}
-            >
-              {product.description || product.category}
+            <p className="text-muted-foreground mb-3 max-w-2xl">
+              {product.description || 'No description provided.'}
             </p>
-            <span
-              className="text-xs font-medium px-2.5 py-0.5 rounded-full"
-              style={{
-                background: 'var(--color-primary-50)',
-                color: 'var(--color-primary-700)',
-              }}
-            >
-              {product.category}
-            </span>
-          </div>
-        </div>
-
-        {/* Progress */}
-        {roadmap && (
-          <div className="mt-6">
-            <div className="flex items-center justify-between mb-2">
-              <span
-                className="text-sm font-medium"
-                style={{ color: 'var(--color-text-secondary)' }}
-              >
-                {t('workspace.progress')}
-              </span>
-              <span
-                className="text-sm font-bold"
-                style={{ color: 'var(--color-primary-600)' }}
-                data-testid="completion-percentage"
-              >
-                {completion}%
-              </span>
-            </div>
-            <div className="progress-bar">
-              <div
-                className="progress-bar-fill"
-                style={{ width: `${completion}%` }}
-                data-testid="progress-bar"
-              />
+            <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-secondary text-secondary-foreground">
+              Category: {product.category}
             </div>
           </div>
-        )}
-
-        {/* Actions */}
-        <div className="flex flex-wrap gap-3 mt-6">
-          {!roadmap ? (
-            <button
-              onClick={handleGenerateRoadmap}
-              className="btn btn-primary"
-              data-testid="generate-roadmap-btn"
-            >
-              <Map size={16} />
-              {t('roadmap.generate')}
-            </button>
-          ) : (
-            <>
-              <Link
-                href={`/products/${productId}/roadmap`}
-                className="btn btn-secondary"
-              >
-                <Map size={16} />
-                {t('workspace.roadmap')}
-              </Link>
-              <Link
-                href={`/products/${productId}/documents`}
-                className="btn btn-secondary"
-              >
-                <FileText size={16} />
-                {t('workspace.documents')}
-              </Link>
-            </>
-          )}
         </div>
       </div>
 
-      {/* Checklist */}
-      {roadmap && steps.length > 0 && (
-        <div className="card p-6">
-          <h2
-            className="text-lg font-semibold mb-4"
-            style={{ color: 'var(--color-text-primary)' }}
-          >
-            Compliance Checklist
-          </h2>
-          <div className="space-y-2 stagger-children">
-            {steps.map(step => (
-              <div
-                key={step.id}
-                className="flex items-start gap-3 p-3 rounded-lg cursor-pointer group"
-                style={{
-                  background:
-                    step.status === 'COMPLETED'
-                      ? 'var(--color-verified-50)'
-                      : 'transparent',
-                  transition: 'background var(--transition-fast)',
-                }}
-                onClick={() => handleStepToggle(step.id, step.status)}
-                role="checkbox"
-                aria-checked={step.status === 'COMPLETED'}
-                data-testid={`step-${step.orderIndex}`}
-              >
-                <div className="flex-shrink-0 mt-0.5">
-                  {STATUS_ICON[step.status]}
+      {/* Applicable Standards Section */}
+      <div className="mb-8">
+        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+          <FileText size={20} className="text-primary" />
+          Applicable BIS Standards
+        </h2>
+        {mappedStandards.length > 0 ? (
+          <div className="grid gap-3">
+            {mappedStandards.map(mapping => (
+              <div key={mapping.id} className="card p-5 border shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h3 className="font-bold text-lg text-foreground">{mapping.standard_number}</h3>
+                  <p className="text-sm text-muted-foreground">{mapping.description}</p>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span
-                      className="text-sm font-medium"
-                      style={{
-                        color: 'var(--color-text-primary)',
-                        textDecoration:
-                          step.status === 'COMPLETED'
-                            ? 'line-through'
-                            : 'none',
-                        opacity: step.status === 'COMPLETED' ? 0.7 : 1,
-                      }}
-                    >
-                      {step.title}
-                    </span>
-                    <ConfidenceTag level={step.confidenceLevel} />
-                  </div>
-                  {step.sourceClause && (
-                    <span
-                      className="text-xs mt-0.5 block"
-                      style={{ color: 'var(--color-primary-600)' }}
-                    >
-                      {step.sourceClause}
-                    </span>
-                  )}
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-full text-xs font-bold whitespace-nowrap">
+                  <ShieldCheck size={14} />
+                  AUTHORITATIVE BIS DATA
                 </div>
               </div>
             ))}
           </div>
+        ) : (
+          <div className="card p-6 bg-muted/30 text-center border-dashed">
+            <Info size={24} className="mx-auto mb-2 text-muted-foreground" />
+            <p className="text-muted-foreground font-medium">No authoritative BIS standard is currently available for this product in the knowledge base.</p>
+          </div>
+        )}
+      </div>
+
+      {/* Roadmap Section */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            <Map size={20} className="text-primary" />
+            Compliance Roadmap
+          </h2>
+          {!roadmap && mappedStandards.length > 0 && (
+            <button
+              onClick={handleGenerateRoadmap}
+              disabled={isGenerating}
+              className="btn btn-primary"
+            >
+              {isGenerating ? (
+                <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Analyzing...</>
+              ) : (
+                <><Map size={16} /> Generate Roadmap</>
+              )}
+            </button>
+          )}
         </div>
-      )}
+
+        {roadmapError && (
+          <div className="card p-5 bg-destructive/10 border-destructive/20 text-destructive flex items-start gap-3">
+            <AlertTriangle size={20} className="flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold">Roadmap Generation Failed</p>
+              <p className="text-sm mt-1">{roadmapError}</p>
+            </div>
+          </div>
+        )}
+
+        {isGenerating && (
+          <div className="card p-12 text-center border-dashed">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="font-medium">Extracting verified compliance evidence...</p>
+            <p className="text-sm text-muted-foreground mt-2">This is powered by the existing RAG engine and may take up to 20 seconds.</p>
+          </div>
+        )}
+
+        {roadmap && !isGenerating && (
+          <div className="card p-6 border shadow-sm">
+            <div className="bg-emerald-50 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400 p-4 rounded-lg mb-8 flex gap-3 border border-emerald-100 dark:border-emerald-800/30">
+              <CheckCircle2 size={24} className="flex-shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-bold">Evidence-Backed Roadmap Generated</h4>
+                <p className="text-sm mt-1 opacity-90">All information below is directly sourced from authoritative BIS documents. No requirements have been hallucinated.</p>
+              </div>
+            </div>
+
+            {renderRoadmapSection('Scope', roadmap.scope)}
+            {renderRoadmapSection('Testing Requirements', roadmap.testing)}
+            {renderRoadmapSection('Component Requirements', roadmap.components)}
+            {renderRoadmapSection('Marking & Packaging', roadmap.marking)}
+            {renderRoadmapSection('Documentation', roadmap.documentation)}
+            {renderRoadmapSection('Other Requirements', roadmap.requirements)}
+
+            {roadmap.evidence_gaps && roadmap.evidence_gaps.length > 0 && (
+              <div className="mt-8 pt-6 border-t border-dashed">
+                <h3 className="font-semibold text-lg mb-3 flex items-center gap-2 text-amber-600 dark:text-amber-500">
+                  <AlertTriangle size={18} />
+                  Evidence Gaps
+                </h3>
+                <p className="text-sm text-muted-foreground mb-3">The following typical compliance requirements were not found in the currently ingested authoritative corpus:</p>
+                <ul className="list-disc pl-5 space-y-1 text-sm text-muted-foreground">
+                  {roadmap.evidence_gaps.map((gap: string, i: number) => (
+                    <li key={i}>{gap}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

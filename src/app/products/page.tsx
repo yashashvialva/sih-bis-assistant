@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import {
@@ -11,19 +11,14 @@ import {
   ChevronRight,
   Sparkles,
 } from 'lucide-react';
-import {
-  getProducts,
-  createProduct,
-  deleteProduct,
-} from '@/lib/workspace/store';
-import { PRODUCT_CATEGORIES } from '@/lib/mock-data/seedData';
 import type { Product } from '@/lib/types';
 
 export default function ProductsPage() {
   const { t } = useTranslation();
-  const [products, setProducts] = useState<Product[]>(() => {
-    return getProducts();
-  });
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -31,25 +26,69 @@ export default function ProductsPage() {
     category: '',
   });
 
-  const handleCreate = (e: React.FormEvent) => {
+  const DEMO_CATEGORIES = ['Electric Kettle', 'Ceiling Fan', 'LED Lamp', 'Air Conditioner', 'Microwave Oven'];
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const fetchProducts = async () => {
+    try {
+      const res = await fetch('/api/products');
+      if (!res.ok) throw new Error('Failed to fetch products');
+      const data = await res.json();
+      setProducts(data.products || []);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim() || !formData.category) return;
 
-    const product = createProduct({
-      name: formData.name.trim(),
-      description: formData.description.trim(),
-      category: formData.category,
-    });
+    try {
+      const res = await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name.trim(),
+          description: formData.description.trim(),
+          category: formData.category,
+        })
+      });
 
-    setProducts(prev => [...prev, product]);
-    setFormData({ name: '', description: '', category: '' });
-    setShowForm(false);
+      if (!res.ok) throw new Error('Failed to create product');
+      
+      const data = await res.json();
+      setProducts(prev => [data.product, ...prev]);
+      setFormData({ name: '', description: '', category: '' });
+      setShowForm(false);
+    } catch (err: any) {
+      alert(err.message);
+    }
   };
 
-  const handleDelete = (id: string) => {
-    deleteProduct(id);
-    setProducts(prev => prev.filter(p => p.id !== id));
+  const handleDelete = async (id: string) => {
+    try {
+      const res = await fetch(`/api/products/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete product');
+      setProducts(prev => prev.filter(p => p.id !== id));
+    } catch (err: any) {
+      alert(err.message);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8 animate-fade-in text-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+        <p className="text-muted-foreground">Loading workspace...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 animate-fade-in">
@@ -82,9 +121,15 @@ export default function ProductsPage() {
         </button>
       </div>
 
+      {error && (
+        <div className="card p-4 mb-6 bg-destructive/10 border-destructive/20 text-destructive text-sm font-medium">
+          {error}
+        </div>
+      )}
+
       {/* Create Product Form */}
       {showForm && (
-        <div className="card p-6 mb-6 animate-fade-in">
+        <div className="card p-6 mb-6 animate-fade-in border shadow-sm">
           <h2
             className="text-lg font-semibold mb-4"
             style={{ color: 'var(--color-text-primary)' }}
@@ -106,7 +151,7 @@ export default function ProductsPage() {
                 onChange={e =>
                   setFormData(prev => ({ ...prev, name: e.target.value }))
                 }
-                placeholder="e.g., Electric Kettle Model EK-2000"
+                placeholder="e.g., 1.5L Electric Kettle Model EK-2000"
                 required
               />
             </div>
@@ -146,7 +191,7 @@ export default function ProductsPage() {
                 required
               >
                 <option value="">Select a category...</option>
-                {PRODUCT_CATEGORIES.map(cat => (
+                {DEMO_CATEGORIES.map(cat => (
                   <option key={cat} value={cat}>
                     {cat}
                   </option>
@@ -172,7 +217,7 @@ export default function ProductsPage() {
 
       {/* Product List */}
       {products.length === 0 ? (
-        <div className="card p-12 text-center">
+        <div className="card p-12 text-center bg-muted/30">
           <div
             className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
             style={{
@@ -191,7 +236,7 @@ export default function ProductsPage() {
           {products.map(product => (
             <div
               key={product.id}
-              className="card p-5 flex items-center justify-between group"
+              className="card p-5 flex items-center justify-between group hover:shadow-md transition-shadow"
             >
               <Link
                 href={`/products/${product.id}`}
@@ -231,12 +276,13 @@ export default function ProductsPage() {
                 />
               </Link>
               <button
-                onClick={() => handleDelete(product.id)}
-                className="btn btn-ghost btn-sm ml-2 opacity-0 group-hover:opacity-100"
-                style={{
-                  color: 'var(--color-text-muted)',
-                  transition: 'opacity var(--transition-base)',
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleDelete(product.id);
                 }}
+                className="btn btn-ghost btn-sm ml-2 opacity-0 group-hover:opacity-100 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                style={{ transition: 'opacity var(--transition-base)' }}
                 aria-label={`Delete ${product.name}`}
               >
                 <Trash2 size={14} />
