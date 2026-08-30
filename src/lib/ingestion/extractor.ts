@@ -75,12 +75,12 @@ export function extractFromHtml(html: string, sourceUrl: string): ExtractionResu
 
 export async function extractFromPdf(pdfBuffer: Buffer, sourceUrl: string): Promise<ExtractionResult> {
   try {
-    const pdfParse = (await import('pdf-parse')) as any;
-    const parse = pdfParse.default || pdfParse;
-    const data = await parse(pdfBuffer);
+    const { PDFParse } = require('pdf-parse');
+    const parser = new PDFParse({ data: pdfBuffer });
+    const data = await parser.getText();
 
     const extractedText = data.text || '';
-    const pageCount = data.numpages || undefined;
+    const pageCount = data.numpages || data.numPages || undefined;
 
     // Detect if this is a scanned/image-only PDF
     if (extractedText.trim().length < 50 && pageCount && pageCount > 0) {

@@ -151,11 +151,14 @@ BEGIN
         bc.content,
         bc.metadata,
         bc.source_type,
-        bc.verification_status,
-        bc.authoritative,
+        sd.verification_status,
+        sd.authoritative,
         1 - (bc.embedding <=> query_embedding) AS similarity
     FROM bis_chunks bc
+    JOIN source_documents sd ON bc.source_document_id = sd.id
     WHERE 1 - (bc.embedding <=> query_embedding) > match_threshold
+      AND sd.verification_status = 'AUTHORITATIVE'
+      AND sd.authoritative = true
     ORDER BY bc.embedding <=> query_embedding
     LIMIT match_count;
 END;

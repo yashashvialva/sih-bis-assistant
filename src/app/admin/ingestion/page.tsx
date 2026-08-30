@@ -41,7 +41,7 @@ export default function IngestionPage() {
         urls: inputUrl ? [inputUrl] : undefined,
       };
       
-      const res = await fetch('/api/admin/ingest', {
+      const res = await fetch('/api/admin/discover', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -66,13 +66,13 @@ export default function IngestionPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Ingestion Pipeline</h1>
-        <p className="text-sm text-gray-500 mt-1">Trigger manual ingestion runs and monitor pipeline status.</p>
+        <h1 className="text-2xl font-bold text-gray-900">Source Discovery</h1>
+        <p className="text-sm text-gray-500 mt-1">Discover candidate documents for the Electrotechnical category. Human verification is required before ingestion.</p>
       </div>
 
       <div className="card p-6 border-t-4" style={{ borderTopColor: 'var(--color-primary-500)' }}>
         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <Play size={18} className="text-primary-600" /> Start Manual Ingestion
+          <Play size={18} className="text-primary-600" /> Discover Sources
         </h2>
         <form onSubmit={handleStartIngestion} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
           <div>
@@ -112,12 +112,12 @@ export default function IngestionPage() {
               disabled={isStarting || (!inputStandard && !inputProduct && !inputUrl)}
             >
               {isStarting ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
-              Run Pipeline
+              Run Discovery
             </button>
           </div>
         </form>
         <p className="text-xs text-gray-500 mt-3">
-          Note: This will trigger the discovery engine across all enabled trusted sources.
+          Note: This will discover sources across enabled registries (e.g. Electric Kettle, Ceiling Fan, LED Lamp). Discovered documents remain PENDING_REVIEW until verified.
         </p>
       </div>
 

@@ -1,13 +1,14 @@
 /**
- * BIS Compliance Assistant — Ingestion Pipeline Orchestrator
+ * BIS Compliance Assistant — Discovery & Ingestion Orchestrator
  * 
- * Chains together all stages of the ingestion process:
- * Discovery → Fetch → Extract → Verify → Chunk → Embed → Store
+ * Separates Discovery (Phase 1) from Ingestion (Phase 2).
+ * Ensures that no document is extracted, chunked, or embedded without explicit
+ * human admin verification of the candidate source.
  */
 
 import { getAdminSupabase } from '../db/supabaseClient';
 import { getEmbedding } from '../ai/embedding';
-import { DEFAULT_TRUSTED_SOURCES, determineVerificationStatus } from './sourceRegistry';
+import { DEFAULT_TRUSTED_SOURCES } from './sourceRegistry';
 import { discoverSources } from './discovery';
 import { fetchDocument } from './fetcher';
 import { extractContent } from './extractor';
@@ -15,235 +16,250 @@ import { chunkDocument } from './chunker';
 import { detectChanges } from './changeDetector';
 import type { IngestionInput, IngestionJob, IngestionLogEntry } from './types';
 
-export async function runIngestionPipeline(
+// ─── 1. DISCOVERY PHASE ─────────────────────────────────
+
+export async function runDiscoveryPipeline(
   input: IngestionInput,
   triggerType: IngestionJob['triggerType']
 ): Promise<string> {
   const supabase = getAdminSupabase();
   if (!supabase) throw new Error('Database connection required for ingestion');
 
-  // 1. Create Job Record
   const { data: job, error: jobError } = await supabase
     .from('ingestion_jobs')
     .insert({
       trigger_type: triggerType,
       status: 'RUNNING',
       sources_discovered: 0,
-      sources_fetched: 0,
-      sources_rejected: 0,
-      documents_created: 0,
-      documents_updated: 0,
-      chunks_created: 0,
-      embeddings_generated: 0,
       errors: 0,
-      log: [{ timestamp: new Date().toISOString(), level: 'info', message: 'Ingestion pipeline started' }],
+      log: [{ timestamp: new Date().toISOString(), level: 'info', message: 'Discovery pipeline started' }],
     })
     .select('id')
     .single();
 
   if (jobError || !job) throw new Error(`Failed to create job: ${jobError?.message}`);
-  const jobId = job.id;
 
   // Background execution
-  processPipeline(jobId, input).catch(err => {
-    console.error(`Pipeline ${jobId} failed completely:`, err);
+  processDiscovery(job.id, input).catch(err => {
+    console.error(`Discovery ${job.id} failed completely:`, err);
   });
 
-  return jobId;
+  return job.id;
 }
 
-// ─── Pipeline Execution ─────────────────────────────────
-
-async function processPipeline(jobId: string, input: IngestionInput) {
+async function processDiscovery(jobId: string, input: IngestionInput) {
   const supabase = getAdminSupabase();
-  const stats = {
-    sources_discovered: 0,
-    sources_fetched: 0,
-    sources_rejected: 0,
-    documents_created: 0,
-    documents_updated: 0,
-    chunks_created: 0,
-    embeddings_generated: 0,
-    errors: 0,
-  };
   const logs: IngestionLogEntry[] = [];
+  let discovered = 0;
+  let errors = 0;
 
   const addLog = (level: 'info' | 'warn' | 'error', message: string, url?: string, error?: string) => {
     logs.push({ timestamp: new Date().toISOString(), level, message, url, error });
-    if (level === 'error') stats.errors++;
+    if (level === 'error') errors++;
   };
 
   try {
-    // 1. Discovery
     addLog('info', `Starting discovery for input: ${JSON.stringify(input)}`);
     
-    // In a real system, we'd fetch trusted sources from the DB. 
-    // Here we use the default allowlist to guarantee safe fallback.
     const { data: dbSources } = await supabase!.from('trusted_sources').select('*').eq('enabled', true);
     const sources = dbSources && dbSources.length > 0 ? dbSources : DEFAULT_TRUSTED_SOURCES;
 
     const discoveredUrls = await discoverSources(input, sources as any);
-    stats.sources_discovered = discoveredUrls.length;
-    addLog('info', `Discovered ${discoveredUrls.length} URLs`);
+    addLog('info', `Discovered ${discoveredUrls.length} candidate URLs`);
 
-    // Process each URL
     for (const item of discoveredUrls) {
       try {
-        addLog('info', `Processing URL`, item.url);
+        const { data: existing } = await supabase!
+          .from('source_documents')
+          .select('id')
+          .eq('source_url', item.url)
+          .single();
 
-        // 2. Fetch
-        let fetchResult;
-        try {
-          fetchResult = await fetchDocument(item.url, sources as any);
-          stats.sources_fetched++;
-        } catch (fetchErr: any) {
-          stats.sources_rejected++;
-          addLog('warn', `Fetch failed or blocked`, item.url, fetchErr.message);
-          continue; // Skip this URL
+        if (!existing) {
+          await supabase!.from('source_documents').insert({
+            source_url: item.url,
+            source_domain: item.domain,
+            document_type: 'UNKNOWN',
+            verification_status: 'PENDING_REVIEW', // STRICT RULE: Must be pending review
+            authoritative: false,                  // STRICT RULE: Must be false
+            discovered_by: item.discoveryMethod,
+            title: `Candidate Document from ${item.domain}`, // Placeholder until extracted
+            standard_number: item.standardNumber || null,
+          });
+          discovered++;
+          addLog('info', `Added candidate document`, item.url);
+        } else {
+          addLog('info', `Candidate already exists in system, skipping`, item.url);
         }
-
-        // 3. Change Detection
-        const changes = await detectChanges(fetchResult.url, fetchResult.contentHash);
-        
-        if (changes.isUnchanged) {
-          addLog('info', `Document unchanged, skipping`, fetchResult.url);
-          continue; // Skip processing
-        }
-
-        // 4. Extract
-        const extraction = await extractContent(
-          fetchResult.rawContent,
-          fetchResult.contentType,
-          fetchResult.url
-        );
-        
-        if (extraction.metadata.extractionFailed) {
-          addLog('warn', `Extraction failed`, fetchResult.url, String(extraction.metadata.failureReason));
-          // We still record the document, but mark it unverified
-        }
-
-        // 5. Verify Provenance rules
-        const verification = determineVerificationStatus(
-          item.sourceType,
-          !extraction.metadata.extractionFailed,
-          !!extraction.standardNumber || !!extraction.title,
-          false // not demo data
-        );
-
-        // 6. Store Document Record
-        let documentId = changes.existingDocumentId;
-
-        if (changes.isNew) {
-          const { data: newDoc, error: docErr } = await supabase!.from('source_documents')
-            .insert({
-              source_url: fetchResult.url,
-              source_domain: fetchResult.domain,
-              title: extraction.title,
-              standard_number: extraction.standardNumber,
-              document_type: fetchResult.contentType,
-              verification_status: verification.verificationStatus,
-              authoritative: verification.authoritative,
-              discovered_by: item.discoveryMethod,
-              last_checked_at: fetchResult.retrievedAt,
-            })
-            .select('id')
-            .single();
-            
-          if (docErr) throw docErr;
-          documentId = newDoc.id;
-          stats.documents_created++;
-          addLog('info', `Created new document record`, fetchResult.url);
-        } else if (changes.isChanged) {
-          const { error: updErr } = await supabase!.from('source_documents')
-            .update({
-              title: extraction.title,
-              standard_number: extraction.standardNumber,
-              last_checked_at: fetchResult.retrievedAt,
-            })
-            .eq('id', documentId!);
-            
-          if (updErr) throw updErr;
-          stats.documents_updated++;
-          addLog('info', `Updated existing document record`, fetchResult.url);
-          
-          // Mark previous version as not current
-          if (changes.existingVersionId) {
-            await supabase!.from('source_document_versions')
-              .update({ is_current: false })
-              .eq('id', changes.existingVersionId);
-          }
-        }
-
-        // 7. Store Version Record
-        await supabase!.from('source_document_versions').insert({
-          document_id: documentId!,
-          version_number: changes.versionNumber,
-          content_hash: fetchResult.contentHash,
-          raw_content: typeof fetchResult.rawContent === 'string' ? fetchResult.rawContent : null,
-          extracted_text: extraction.extractedText,
-          page_count: extraction.pageCount,
-          retrieved_at: fetchResult.retrievedAt,
-          is_current: true,
-          metadata: extraction.metadata,
-        });
-
-        // 8. Chunk and Embed
-        if (!extraction.metadata.extractionFailed) {
-          // Delete old chunks if this is an update
-          if (changes.isChanged) {
-            await supabase!.from('bis_chunks').delete().eq('source_document_id', documentId!);
-          }
-
-          const chunks = chunkDocument(extraction, fetchResult.url, documentId!);
-          
-          for (const chunk of chunks) {
-            const embeddingText = `${chunk.content} ${chunk.sectionTitle ?? ''} ${chunk.clauseNumber ?? ''} ${chunk.standardNumber ?? ''}`;
-            const embedding = await getEmbedding(embeddingText);
-            stats.embeddings_generated++;
-
-            const { error: chunkErr } = await supabase!.from('bis_chunks').insert({
-              source_document_id: documentId!,
-              standard_number: chunk.standardNumber,
-              clause: chunk.clauseNumber,
-              section_title: chunk.sectionTitle,
-              content: chunk.content,
-              metadata: chunk.metadata,
-              embedding,
-              source_type: item.sourceType,
-              verification_status: verification.verificationStatus,
-              authoritative: verification.authoritative,
-            });
-
-            if (chunkErr) {
-              addLog('error', `Failed to insert chunk`, fetchResult.url, chunkErr.message);
-            } else {
-              stats.chunks_created++;
-            }
-          }
-        }
-
-        // 9. Record Event
-        await supabase!.from('ingestion_events').insert({
-          event_type: changes.isNew ? 'DOCUMENT_DISCOVERED' : 'DOCUMENT_CHANGED',
-          document_id: documentId!,
-          standard_number: extraction.standardNumber,
-          description: `Version ${changes.versionNumber} processed.`,
-        });
-
-      } catch (itemErr: any) {
-        addLog('error', `Failed processing URL`, item.url, itemErr.message);
+      } catch (err: any) {
+        addLog('error', `Failed to record candidate`, item.url, err.message);
       }
     }
 
-    addLog('info', 'Pipeline completed successfully');
+    addLog('info', 'Discovery completed successfully');
   } catch (err: any) {
-    addLog('error', 'Pipeline failed catastrophically', undefined, err.message);
+    addLog('error', 'Discovery failed catastrophically', undefined, err.message);
   } finally {
-    // 10. Finalize Job
     await supabase!.from('ingestion_jobs').update({
-      status: stats.errors > 0 ? 'COMPLETED' : 'COMPLETED', // Could be FAILED if critical
+      status: 'COMPLETED',
       completed_at: new Date().toISOString(),
-      ...stats,
+      sources_discovered: discovered,
+      errors,
+      log: logs,
+    }).eq('id', jobId);
+  }
+}
+
+// ─── 2. INGESTION PHASE (POST-VERIFICATION) ─────────────
+
+export async function runIngestionForDocument(documentId: string): Promise<void> {
+  const supabase = getAdminSupabase();
+  if (!supabase) throw new Error('Database connection required for ingestion');
+
+  // 1. Fetch document and confirm it is verified
+  const { data: doc, error: docErr } = await supabase
+    .from('source_documents')
+    .select('*')
+    .eq('id', documentId)
+    .single();
+
+  if (docErr || !doc) throw new Error('Document not found');
+
+  if (doc.verification_status !== 'AUTHORITATIVE' || doc.authoritative !== true) {
+    throw new Error('SAFETY VIOLATION: Cannot ingest document. It has not been explicitly verified by an admin.');
+  }
+
+  // 2. Create the ingestion_jobs record
+  const { data: job, error: jobError } = await supabase
+    .from('ingestion_jobs')
+    .insert({
+      trigger_type: 'ADMIN',
+      status: 'RUNNING',
+      sources_fetched: 0,
+      documents_created: 0,
+      documents_updated: 0,
+      chunks_created: 0,
+      embeddings_generated: 0,
+      errors: 0,
+      log: [{ timestamp: new Date().toISOString(), level: 'info', message: `Starting ingestion for verified document: ${doc.source_url}` }],
+    })
+    .select('id')
+    .single();
+
+  if (jobError || !job) {
+    throw new Error(`Failed to create ingestion job: ${jobError?.message}`);
+  }
+
+  const jobId = job.id;
+  const logs: IngestionLogEntry[] = [{ timestamp: new Date().toISOString(), level: 'info', message: `Starting ingestion for verified document: ${doc.source_url}` }];
+  let chunksCreated = 0;
+  let errors = 0;
+
+  const addLog = (level: 'info' | 'warn' | 'error', message: string, error?: string) => {
+    logs.push({ timestamp: new Date().toISOString(), level, message, error });
+    if (level === 'error') errors++;
+  };
+
+  try {
+    addLog('info', 'Processing URL: ' + doc.source_url);
+    const { data: dbSources } = await supabase.from('trusted_sources').select('*').eq('enabled', true);
+    const sources = dbSources && dbSources.length > 0 ? dbSources : DEFAULT_TRUSTED_SOURCES;
+
+    // 2. Fetch Source
+    addLog('info', 'Fetching document...');
+    const fetchResult = await fetchDocument(doc.source_url, sources as any);
+    const changes = await detectChanges(fetchResult.url, fetchResult.contentHash);
+
+    // 3. Extract Content
+    addLog('info', 'Extracting text...');
+    const extraction = await extractContent(
+      fetchResult.rawContent,
+      fetchResult.contentType,
+      fetchResult.url
+    );
+
+    if (extraction.metadata.extractionFailed) {
+      throw new Error(`Extraction failed: ${extraction.metadata.failureReason}`);
+    }
+
+    // 4. Update Document Metadata with actual extracted values
+    await supabase.from('source_documents').update({
+      title: extraction.title || doc.title,
+      standard_number: extraction.standardNumber || doc.standard_number,
+      document_type: fetchResult.contentType,
+      last_checked_at: fetchResult.retrievedAt,
+    }).eq('id', documentId);
+
+    // 5. Store Version
+    await supabase.from('source_document_versions').insert({
+      document_id: documentId,
+      version_number: changes.versionNumber,
+      content_hash: fetchResult.contentHash,
+      raw_content: typeof fetchResult.rawContent === 'string' ? fetchResult.rawContent : null,
+      extracted_text: extraction.extractedText,
+      page_count: extraction.pageCount,
+      retrieved_at: fetchResult.retrievedAt,
+      is_current: true,
+      metadata: extraction.metadata,
+    });
+
+    // 6. Chunk and Embed
+    addLog('info', 'Chunking...');
+    await supabase.from('ingestion_jobs').update({
+      sources_fetched: 1,
+      documents_updated: 1,
+      log: logs,
+    }).eq('id', jobId);
+
+    await supabase.from('bis_chunks').delete().eq('source_document_id', documentId);
+
+    const chunks = chunkDocument(extraction, fetchResult.url, documentId);
+    
+    addLog('info', `Generating embeddings and saving ${chunks.length} chunks...`);
+    for (const chunk of chunks) {
+      const embeddingText = `${chunk.content} ${chunk.sectionTitle ?? ''} ${chunk.clauseNumber ?? ''} ${chunk.standardNumber ?? ''}`;
+      const embedding = await getEmbedding(embeddingText);
+
+      await supabase.from('bis_chunks').insert({
+        source_document_id: documentId,
+        standard_number: chunk.standardNumber,
+        clause: chunk.clauseNumber,
+        section_title: chunk.sectionTitle,
+        content: chunk.content,
+        metadata: chunk.metadata,
+        embedding,
+        // Provenance is derived dynamically at query time via JOIN against source_documents
+      });
+    }
+
+    chunksCreated = chunks.length;
+    addLog('info', `Successfully ingested and embedded ${chunks.length} chunks.`);
+
+    // 7. Success Audit Log
+    await supabase.from('ingestion_events').insert({
+      event_type: 'DOCUMENT_INGESTED',
+      document_id: documentId,
+      description: `Successfully ingested and embedded ${chunks.length} chunks.`,
+    });
+
+  } catch (error: any) {
+    // Audit Log on Failure
+    addLog('error', `Ingestion failed: ${error.message}`);
+    await supabase.from('ingestion_events').insert({
+      event_type: 'INGESTION_FAILED',
+      document_id: documentId,
+      description: `Ingestion failed: ${error.message}`,
+    });
+  } finally {
+    // 8. Update Job Record
+    await supabase.from('ingestion_jobs').update({
+      status: errors > 0 ? 'FAILED' : 'COMPLETED',
+      completed_at: new Date().toISOString(),
+      sources_fetched: errors > 0 ? 0 : 1,
+      documents_updated: errors > 0 ? 0 : 1,
+      chunks_created: chunksCreated,
+      embeddings_generated: chunksCreated,
+      errors,
       log: logs,
     }).eq('id', jobId);
   }

@@ -4,7 +4,7 @@ import path from 'path';
 // Load env before importing other modules
 dotenv.config({ path: path.resolve(__dirname, '../.env.local') });
 
-import { runIngestionPipeline } from '../src/lib/ingestion/pipeline';
+import { runDiscoveryPipeline } from '../src/lib/ingestion/pipeline';
 import type { IngestionInput } from '../src/lib/ingestion/types';
 
 async function main() {
@@ -35,18 +35,15 @@ async function main() {
   console.log('Initializing pipeline...\n');
 
   try {
-    const jobId = await runIngestionPipeline(input, 'MANUAL');
-    console.log(`\nPipeline started successfully! Job ID: ${jobId}`);
-    console.log('Check the database or admin UI for progress.');
+    const jobId = await runDiscoveryPipeline(input, 'MANUAL');
+    console.log(`Discovery pipeline started with Job ID: ${jobId}`);
     
-    // We let the process exit, since runIngestionPipeline runs asynchronously 
-    // but in a CLI context, we would normally wait for it. For now, since 
-    // runIngestionPipeline fires and returns jobId, we'll wait 5 seconds then exit.
-    console.log('Waiting 5s for initial logs...');
-    setTimeout(() => {
-      console.log('Exiting CLI. The pipeline might still be running in the background if run via server, but in CLI it will terminate. If you need it to run fully, use the Admin UI.');
-      process.exit(0);
-    }, 5000);
+    // We let the process exit, since runDiscoveryPipeline runs asynchronously 
+    // in the background inside the Next.js server. Oh wait, this is a CLI script!
+    // runDiscoveryPipeline fires and returns jobId, we'll wait 5 seconds then exit.
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    console.log('Exiting CLI. The pipeline might still be running in the background if run via server, but in CLI it will terminate. If you need it to run fully, use the Admin UI.');
+    process.exit(0);
   } catch (error) {
     console.error('Failed to start ingestion:', error);
     process.exit(1);

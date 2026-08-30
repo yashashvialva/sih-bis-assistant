@@ -3,12 +3,12 @@ import OpenAI from 'openai';
 // ─── LLM Configuration ─────────────────────────────────────
 export const AI_CONFIG = {
   groqApiKey: process.env.GROQ_API_KEY || '',
-  llmModel: process.env.LLM_MODEL || 'qwen-2.5-32b',
+  llmModel: process.env.LLM_MODEL || 'qwen/qwen3.8-27b',
   llmBaseUrl: process.env.LLM_BASE_URL || 'https://api.groq.com/openai/v1',
 };
 
 // ─── Embedding Configuration ───────────────────────────────
-export const EMBEDDING_MODEL = process.env.EMBEDDING_MODEL || 'Xenova/bge-m3';
+export const EMBEDDING_MODEL = process.env.EMBEDDING_MODEL || 'Xenova/bge-base-en-v1.5';
 
 // ─── Centralized LLM Client (Singleton) ────────────────────
 let _openaiClient: OpenAI | null = null;
