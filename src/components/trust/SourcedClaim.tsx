@@ -86,7 +86,7 @@ export function SourcedClaim({
   className = '',
 }: SourcedClaimProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const config = CONFIDENCE_CONFIG[confidenceLevel];
+  const config = CONFIDENCE_CONFIG[confidenceLevel] || CONFIDENCE_CONFIG['VERIFIED_BIS_DATA'];
 
   return (
     <div
@@ -272,7 +272,7 @@ interface ConfidenceTagProps {
 }
 
 export function ConfidenceTag({ level, className = '' }: ConfidenceTagProps) {
-  const config = CONFIDENCE_CONFIG[level];
+  const config = CONFIDENCE_CONFIG[level] || CONFIDENCE_CONFIG['VERIFIED_BIS_DATA'];
   return (
     <span
       className={`badge ${config.badgeClass} ${className}`}

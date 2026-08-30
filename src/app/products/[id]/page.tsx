@@ -40,6 +40,15 @@ export default function ProductWorkspacePage() {
       const data = await res.json();
       setProduct(data.product);
       setMappedStandards(data.mappedStandards || []);
+
+      // Check if a roadmap already exists in the database
+      const rmRes = await fetch(`/api/products/${productId}/roadmap`);
+      if (rmRes.ok) {
+        const rmData = await rmRes.json();
+        if (rmData.roadmap) {
+          setRoadmap(rmData.roadmap);
+        }
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -52,15 +61,8 @@ export default function ProductWorkspacePage() {
     setIsGenerating(true);
     setRoadmapError(null);
     try {
-      const response = await fetch('/api/roadmap', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productId: product.id,
-          productName: product.name,
-          productDescription: product.description,
-          productCategory: product.category
-        }),
+      const response = await fetch(`/api/products/${productId}/roadmap`, {
+        method: 'POST'
       });
 
       const data = await response.json();
@@ -69,6 +71,8 @@ export default function ProductWorkspacePage() {
       }
       
       setRoadmap(data.roadmap);
+      // Redirect to the interactive roadmap page
+      window.location.href = `/products/${productId}/roadmap`;
     } catch (err: any) {
       console.error('Failed to generate roadmap:', err);
       setRoadmapError(err.message);
@@ -230,36 +234,23 @@ export default function ProductWorkspacePage() {
         )}
 
         {roadmap && !isGenerating && (
-          <div className="card p-6 border shadow-sm">
-            <div className="bg-emerald-50 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400 p-4 rounded-lg mb-8 flex gap-3 border border-emerald-100 dark:border-emerald-800/30">
-              <CheckCircle2 size={24} className="flex-shrink-0 mt-0.5" />
-              <div>
-                <h4 className="font-bold">Evidence-Backed Roadmap Generated</h4>
-                <p className="text-sm mt-1 opacity-90">All information below is directly sourced from authoritative BIS documents. No requirements have been hallucinated.</p>
-              </div>
+          <div className="card p-6 border shadow-sm text-center">
+            <div className="bg-emerald-50 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400 p-4 rounded-lg mb-6 flex items-center justify-center gap-3 border border-emerald-100 dark:border-emerald-800/30">
+              <CheckCircle2 size={24} />
+              <h4 className="font-bold text-lg">Evidence-Backed Roadmap Ready</h4>
             </div>
+            
+            <p className="text-muted-foreground mb-6">
+              Your compliance roadmap has been generated and securely saved to the database.
+            </p>
 
-            {renderRoadmapSection('Scope', roadmap.scope)}
-            {renderRoadmapSection('Testing Requirements', roadmap.testing)}
-            {renderRoadmapSection('Component Requirements', roadmap.components)}
-            {renderRoadmapSection('Marking & Packaging', roadmap.marking)}
-            {renderRoadmapSection('Documentation', roadmap.documentation)}
-            {renderRoadmapSection('Other Requirements', roadmap.requirements)}
-
-            {roadmap.evidence_gaps && roadmap.evidence_gaps.length > 0 && (
-              <div className="mt-8 pt-6 border-t border-dashed">
-                <h3 className="font-semibold text-lg mb-3 flex items-center gap-2 text-amber-600 dark:text-amber-500">
-                  <AlertTriangle size={18} />
-                  Evidence Gaps
-                </h3>
-                <p className="text-sm text-muted-foreground mb-3">The following typical compliance requirements were not found in the currently ingested authoritative corpus:</p>
-                <ul className="list-disc pl-5 space-y-1 text-sm text-muted-foreground">
-                  {roadmap.evidence_gaps.map((gap: string, i: number) => (
-                    <li key={i}>{gap}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            <Link 
+              href={`/products/${productId}/roadmap`}
+              className="btn btn-primary px-8 py-3 shadow-sm text-base inline-flex items-center gap-2"
+            >
+              <Map size={18} />
+              Open Interactive Roadmap & To-Do List
+            </Link>
           </div>
         )}
       </div>
