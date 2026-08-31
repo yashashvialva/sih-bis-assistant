@@ -30,9 +30,11 @@ export function useAlerts() {
   const refreshLocalState = () => setLocalUpdateState(prev => prev + 1);
 
   useEffect(() => {
-    async function fetchData() {
+    let isMounted = true;
+
+    async function fetchData(isInitial = false) {
       try {
-        setLoading(true);
+        if (isInitial) setLoading(true);
         
         // Fetch both alerts and products in parallel, ensuring no cache is used
         const [alertsRes, productsRes] = await Promise.all([
@@ -40,6 +42,7 @@ export function useAlerts() {
           fetch('/api/products', { cache: 'no-store' })
         ]);
         
+        if (!isMounted) return;
         if (!alertsRes.ok) throw new Error('Failed to fetch alerts');
         
         const data = await alertsRes.json();
@@ -49,6 +52,8 @@ export function useAlerts() {
           const prodData = await productsRes.json();
           fetchedProducts = prodData.products || [];
         }
+        
+        if (!isMounted) return;
         setProducts(fetchedProducts);
         
         // Map DB snake_case to camelCase
@@ -67,13 +72,24 @@ export function useAlerts() {
         
         setAmendments(mappedAmendments);
       } catch (err: any) {
-        setError(err.message);
+        if (isMounted) setError(err.message);
       } finally {
-        setLoading(false);
+        if (isMounted && isInitial) setLoading(false);
       }
     }
     
-    fetchData();
+    // Initial fetch
+    fetchData(true);
+
+    // Poll for new alerts every 15 seconds
+    const intervalId = setInterval(() => {
+      fetchData(false);
+    }, 15000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
   }, []);
 
   // Compute personalized alerts and memoize them to prevent infinite re-renders

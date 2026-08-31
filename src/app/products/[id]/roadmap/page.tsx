@@ -10,7 +10,8 @@ import {
   CheckCircle2,
   Circle,
   Loader2,
-  AlertTriangle
+  AlertTriangle,
+  Info
 } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { SourcedClaim } from '@/components/trust/SourcedClaim';
@@ -229,35 +230,61 @@ export default function RoadmapPage() {
           {error}
         </div>
       )}
+      {(() => {
+        if (pendingAmendments.length === 0) return null;
+        
+        const hasPotentialImpact = pendingAmendments.some(a => a.severity === 'POTENTIAL_IMPACT');
+        const hasReviewRecommended = pendingAmendments.some(a => a.severity === 'REVIEW_RECOMMENDED');
+        
+        let colorClasses = "border-sky-500/30 bg-sky-50";
+        let textClasses = "text-sky-800";
+        let subTextClasses = "text-sky-700/80";
+        let icon = <Info size={20} />;
+        let title = "INFORMATION: New Standard Updates Available";
+        
+        if (hasPotentialImpact) {
+          colorClasses = "border-rose-500/30 bg-rose-50";
+          textClasses = "text-rose-800";
+          subTextClasses = "text-rose-700/80";
+          icon = <AlertTriangle size={20} />;
+          title = "ACTION REQUIRED: New Standard Updates Available";
+        } else if (hasReviewRecommended) {
+          colorClasses = "border-amber-500/30 bg-amber-50";
+          textClasses = "text-amber-800";
+          subTextClasses = "text-amber-700/80";
+          icon = <AlertTriangle size={20} />;
+          title = "REVIEW RECOMMENDED: New Standard Updates Available";
+        }
 
-      {pendingAmendments.length > 0 && (
-        <div className="mb-8 p-6 rounded-xl border-2 border-emerald-500/30 bg-emerald-50 dark:bg-emerald-900/10 animate-fade-in shadow-sm">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <h3 className="text-lg font-bold text-emerald-800 dark:text-emerald-400 flex items-center gap-2">
-                <AlertTriangle size={20} />
-                New Standard Updates Available
-              </h3>
-              <p className="text-sm text-emerald-700/80 dark:text-emerald-300/80 mt-1 max-w-xl">
-                There are {pendingAmendments.length} new standard amendments that affect your product category.
-                Update your roadmap to generate new compliance tasks based on these changes.
-              </p>
+        return (
+          <div className={`mb-8 p-6 rounded-xl border-2 animate-fade-in shadow-sm ${colorClasses}`}>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <h3 className={`text-lg font-bold flex items-center gap-2 ${textClasses}`}>
+                  {icon}
+                  {title}
+                </h3>
+                <p className={`text-sm mt-1 max-w-xl ${subTextClasses}`}>
+                  There are {pendingAmendments.length} new standard amendments that affect your product category.
+                  Update your roadmap to generate new compliance tasks based on these changes.
+                </p>
+              </div>
+              <button
+                onClick={handleUpdateRoadmap}
+                disabled={isUpdatingRoadmap}
+                className="btn flex-shrink-0 text-white font-bold px-4 py-2 rounded-lg"
+                style={{ background: 'var(--color-primary-600)' }}
+              >
+                {isUpdatingRoadmap ? (
+                  <><Loader2 size={16} className="animate-spin inline mr-2" /> Updating...</>
+                ) : (
+                  'Update Roadmap'
+                )}
+              </button>
             </div>
-            <button
-              onClick={handleUpdateRoadmap}
-              disabled={isUpdatingRoadmap}
-              className="btn flex-shrink-0 text-white font-bold px-4 py-2 rounded-lg"
-              style={{ background: 'var(--color-primary-600)' }}
-            >
-              {isUpdatingRoadmap ? (
-                <><Loader2 size={16} className="animate-spin inline mr-2" /> Updating...</>
-              ) : (
-                'Update Roadmap'
-              )}
-            </button>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {steps.length === 0 ? (
         <div className="card p-12 text-center flex flex-col items-center">
@@ -286,87 +313,170 @@ export default function RoadmapPage() {
           {/* Timeline line */}
           <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-border" />
 
-          <div className="space-y-4">
-            {steps.map((step, idx) => {
-              const typeInfo = STEP_TYPE_LABELS[step.stepType] ?? { label: step.stepType, emoji: '📌' };
-              const isExpanded = expandedSteps.has(step.id);
-              const isCompleted = step.status === 'COMPLETED';
+          <div className="space-y-8">
+            {/* Active Steps */}
+            <div className="space-y-4">
+              {steps
+                .filter(s => s.status !== 'COMPLETED')
+                .sort((a, b) => a.orderIndex - b.orderIndex)
+                .map((step) => {
+                  const typeInfo = STEP_TYPE_LABELS[step.stepType] ?? { label: step.stepType, emoji: '📌' };
+                  const isExpanded = expandedSteps.has(step.id);
+                  const isCompleted = false;
 
-              return (
-                <div key={step.id} className="relative pl-14">
-                  {/* Timeline dot */}
-                  <div
-                    className={`absolute left-4 w-5 h-5 rounded-full flex items-center justify-center text-xs z-10 font-bold ${
-                      isCompleted 
-                        ? 'bg-emerald-500 text-white border-none' 
-                        : 'bg-background border-2 border-primary/50 text-primary'
-                    }`}
-                    style={{ top: '1.25rem' }}
-                  >
-                    {isCompleted ? '✓' : idx + 1}
-                  </div>
+                  return (
+                    <div key={step.id} className="relative pl-14">
+                      <div
+                        className="absolute left-4 w-5 h-5 rounded-full flex items-center justify-center text-xs z-10 font-bold bg-background border-2 border-primary/50 text-primary"
+                        style={{ top: '1.25rem' }}
+                      >
+                        {step.orderIndex}
+                      </div>
 
-                  <div className={`card p-5 transition-colors ${isCompleted ? 'bg-muted/30 border-muted' : ''}`}>
-                    <button
-                      onClick={() => toggleStepAccordion(step.id)}
-                      className="w-full text-left flex items-start justify-between gap-3"
-                    >
-                      <div className="flex-1 flex gap-4">
-                        {/* Interactive Checkbox */}
-                        <div 
-                          className="mt-1 cursor-pointer"
-                          onClick={(e) => toggleStepCompletion(step.id, step.status, e)}
+                      <div className="card p-5 transition-colors">
+                        <button
+                          onClick={() => toggleStepAccordion(step.id)}
+                          className="w-full text-left flex items-start justify-between gap-3"
                         >
-                          {isCompleted ? (
-                            <CheckCircle2 size={24} className="text-emerald-500 hover:text-emerald-600" />
+                          <div className="flex-1 flex gap-4">
+                            <div 
+                              className="mt-1 cursor-pointer"
+                              onClick={(e) => toggleStepCompletion(step.id, step.status, e)}
+                            >
+                              <Circle size={24} className="text-muted-foreground hover:text-primary transition-colors" />
+                            </div>
+
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap mb-1">
+                                <span className="text-base">{typeInfo.emoji}</span>
+                                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                  {t('roadmap.step')} {step.orderIndex} — {typeInfo.label}
+                                </span>
+                              </div>
+                              <h3 className="text-base font-semibold text-foreground">
+                                {step.title}
+                              </h3>
+                            </div>
+                          </div>
+                          
+                          {isExpanded ? (
+                            <ChevronUp size={16} className="flex-shrink-0 mt-1 text-muted-foreground" />
                           ) : (
-                            <Circle size={24} className="text-muted-foreground hover:text-primary transition-colors" />
+                            <ChevronDown size={16} className="flex-shrink-0 mt-1 text-muted-foreground" />
+                          )}
+                        </button>
+
+                        {isExpanded && (
+                          <div className="mt-4 pl-10 animate-fade-in">
+                            <SourcedClaim
+                              content={step.description}
+                              confidenceLevel={step.confidenceLevel}
+                              sources={
+                                step.sourceClause
+                                  ? [
+                                      {
+                                        standardNumber: step.sourceClause.includes('IS') ? '' : 'Authoritative Standard',
+                                        clause: step.sourceClause,
+                                        evidenceText: step.description,
+                                      },
+                                    ]
+                                  : []
+                              }
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+
+            {/* Completed Steps */}
+            {steps.some(s => s.status === 'COMPLETED') && (
+              <div className="space-y-4 pt-4 mt-8 relative">
+                {/* Horizontal divider that crosses the timeline */}
+                <div className="absolute left-10 right-0 top-0 h-px bg-border" />
+                
+                <h3 className="text-sm font-bold text-muted-foreground flex items-center gap-2 pl-14 pb-2">
+                  <CheckCircle2 size={16} />
+                  COMPLETED TASKS
+                </h3>
+                
+                {steps
+                  .filter(s => s.status === 'COMPLETED')
+                  .sort((a, b) => a.orderIndex - b.orderIndex)
+                  .map((step) => {
+                    const typeInfo = STEP_TYPE_LABELS[step.stepType] ?? { label: step.stepType, emoji: '📌' };
+                    const isExpanded = expandedSteps.has(step.id);
+                    const isCompleted = true;
+
+                    return (
+                      <div key={step.id} className="relative pl-14 opacity-75 hover:opacity-100 transition-opacity">
+                        <div
+                          className="absolute left-4 w-5 h-5 rounded-full flex items-center justify-center text-xs z-10 font-bold bg-emerald-500 text-white border-none"
+                          style={{ top: '1.25rem' }}
+                        >
+                          ✓
+                        </div>
+
+                        <div className="card p-5 transition-colors bg-muted/30 border-muted">
+                          <button
+                            onClick={() => toggleStepAccordion(step.id)}
+                            className="w-full text-left flex items-start justify-between gap-3"
+                          >
+                            <div className="flex-1 flex gap-4">
+                              <div 
+                                className="mt-1 cursor-pointer"
+                                onClick={(e) => toggleStepCompletion(step.id, step.status, e)}
+                              >
+                                <CheckCircle2 size={24} className="text-emerald-500 hover:text-emerald-600" />
+                              </div>
+
+                              <div>
+                                <div className="flex items-center gap-2 flex-wrap mb-1">
+                                  <span className="text-base">{typeInfo.emoji}</span>
+                                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                    {t('roadmap.step')} {step.orderIndex} — {typeInfo.label}
+                                  </span>
+                                </div>
+                                <h3 className="text-base font-semibold text-muted-foreground line-through decoration-muted-foreground/50">
+                                  {step.title}
+                                </h3>
+                              </div>
+                            </div>
+                            
+                            {isExpanded ? (
+                              <ChevronUp size={16} className="flex-shrink-0 mt-1 text-muted-foreground" />
+                            ) : (
+                              <ChevronDown size={16} className="flex-shrink-0 mt-1 text-muted-foreground" />
+                            )}
+                          </button>
+
+                          {isExpanded && (
+                            <div className="mt-4 pl-10 animate-fade-in">
+                              <SourcedClaim
+                                content={step.description}
+                                confidenceLevel={step.confidenceLevel}
+                                sources={
+                                  step.sourceClause
+                                    ? [
+                                        {
+                                          standardNumber: step.sourceClause.includes('IS') ? '' : 'Authoritative Standard',
+                                          clause: step.sourceClause,
+                                          evidenceText: step.description,
+                                        },
+                                      ]
+                                    : []
+                                }
+                              />
+                            </div>
                           )}
                         </div>
-
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap mb-1">
-                            <span className="text-base">{typeInfo.emoji}</span>
-                            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                              {t('roadmap.step')} {step.orderIndex} — {typeInfo.label}
-                            </span>
-                          </div>
-                          <h3 className={`text-base font-semibold ${isCompleted ? 'text-muted-foreground line-through decoration-muted-foreground/50' : 'text-foreground'}`}>
-                            {step.title}
-                          </h3>
-                        </div>
                       </div>
-                      
-                      {isExpanded ? (
-                        <ChevronUp size={16} className="flex-shrink-0 mt-1 text-muted-foreground" />
-                      ) : (
-                        <ChevronDown size={16} className="flex-shrink-0 mt-1 text-muted-foreground" />
-                      )}
-                    </button>
-
-                    {isExpanded && (
-                      <div className="mt-4 pl-10 animate-fade-in">
-                        <SourcedClaim
-                          content={step.description}
-                          confidenceLevel={step.confidenceLevel}
-                          sources={
-                            step.sourceClause
-                              ? [
-                                  {
-                                    standardNumber: step.sourceClause.includes('IS') ? '' : 'Authoritative Standard', // Simplified for UI
-                                    clause: step.sourceClause,
-                                    evidenceText: step.description,
-                                  },
-                                ]
-                              : []
-                          }
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+                    );
+                  })}
+              </div>
+            )}
           </div>
         </div>
       )}

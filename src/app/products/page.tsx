@@ -282,7 +282,7 @@ export default function ProductsPage() {
                     
                     {/* Warning Indicator if affected by unread alerts */}
                     {alerts.some(a => !a.isDismissed && doesAmendmentAffectProduct(a.amendment, product)) && (
-                      <div className="flex items-center gap-1 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded text-[10px] font-bold border border-amber-200 dark:border-amber-800">
+                      <div className="flex items-center gap-1 bg-amber-50 text-amber-600 px-2 py-0.5 rounded text-[10px] font-bold border border-amber-200">
                         <AlertTriangle size={12} />
                         ACTION REQUIRED
                       </div>
