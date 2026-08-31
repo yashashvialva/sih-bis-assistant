@@ -205,37 +205,7 @@ export const DEMO_LICENSES: LicenseRecord[] = [
   },
 ];
 
-// ─── Demo Amendment Alerts (Tier 3 — Static) ──────────────────
-
-export const DEMO_AMENDMENTS: SimulatedAmendment[] = [
-  {
-    id: 'demo-amend-001',
-    standardNumber: 'IS 302-2-15 [DEMO]',
-    title: '[SIMULATED] Amendment No. 3 — Updated Thermal Cut-out Requirements',
-    impactSummary: 'A simulated amendment affects the thermal cut-out testing requirements. The test duration for abnormal operation (Clause 19) may need to be extended from 30 minutes to 60 minutes.',
-    affectedClause: 'Clause 19 [DEMO]',
-    severity: 'REVIEW_RECOMMENDED',
-    publishedDate: '2026-07-15',
-  },
-  {
-    id: 'demo-amend-002',
-    standardNumber: 'IS 302-2-15 [DEMO]',
-    title: '[SIMULATED] Corrigendum — Updated Marking Requirements',
-    impactSummary: 'A simulated update to marking requirements. Energy efficiency rating marking may need to be added to product labels in addition to existing ISI marking.',
-    affectedClause: 'Clause 7.1 [DEMO]',
-    severity: 'POTENTIAL_IMPACT',
-    publishedDate: '2026-08-01',
-  },
-  {
-    id: 'demo-amend-003',
-    standardNumber: 'IS 2062 [DEMO]',
-    title: '[SIMULATED] Revised Chemical Composition Limits',
-    impactSummary: 'A simulated revision to the phosphorus and sulphur content limits for Grade E250A. Maximum sulphur content may be reduced from 0.045% to 0.040%.',
-    affectedClause: 'Clause 5 [DEMO]',
-    severity: 'POTENTIAL_IMPACT',
-    publishedDate: '2026-06-20',
-  },
-];
+export const DEMO_AMENDMENTS: SimulatedAmendment[] = [];
 
 // ─── Product Categories ─────────────────────────────────────
 

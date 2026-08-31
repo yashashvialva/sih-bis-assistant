@@ -14,7 +14,9 @@ import {
 } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { SourcedClaim } from '@/components/trust/SourcedClaim';
-import type { Product, RoadmapStep } from '@/lib/types';
+import { markAlertAsRead } from '@/lib/alerts/alertStore';
+import { useAlerts, doesAmendmentAffectProduct } from '@/hooks/useAlerts';
+import type { Product, RoadmapStep, StepStatus, SimulatedAmendment } from '@/lib/types';
 
 const STEP_TYPE_LABELS: Record<string, { label: string; emoji: string }> = {
   STANDARD_IDENTIFICATION: { label: 'Standard Identification', emoji: '📋' },
@@ -24,6 +26,7 @@ const STEP_TYPE_LABELS: Record<string, { label: string; emoji: string }> = {
   LAB_SELECTION: { label: 'Laboratory Selection', emoji: '🏭' },
   APPLICATION: { label: 'BIS Application', emoji: '📝' },
   FINAL_REVIEW: { label: 'Final Review & Grant', emoji: '✅' },
+  COMPLIANCE_UPDATE: { label: 'Standard Amendment Action', emoji: '⚠️' },
 };
 
 export default function RoadmapPage() {
@@ -37,7 +40,25 @@ export default function RoadmapPage() {
   
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isUpdatingRoadmap, setIsUpdatingRoadmap] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingAmendments, setPendingAmendments] = useState<SimulatedAmendment[]>([]);
+  
+  const { alerts, dismiss } = useAlerts();
+
+  // Update pending amendments when alerts or productId changes
+  useEffect(() => {
+    if (!product) return;
+    console.log('[DEBUG Banner] Total alerts from useAlerts:', alerts);
+    console.log('[DEBUG Banner] Current product:', product);
+    const relevantAlerts = alerts.filter(a => {
+      const affects = doesAmendmentAffectProduct(a.amendment, product);
+      console.log(`[DEBUG Banner] Checking alert ${a.id}: isDismissed=${a.isDismissed}, affectsProduct=${affects}`);
+      return !a.isDismissed && affects;
+    });
+    console.log('[DEBUG Banner] Final relevantAlerts:', relevantAlerts);
+    setPendingAmendments(relevantAlerts.map(a => a.amendment));
+  }, [alerts, productId, product]);
 
   // ─── 1. FETCH PRODUCT & ROADMAP ON LOAD ──────────────────────
   useEffect(() => {
@@ -87,8 +108,35 @@ export default function RoadmapPage() {
     }
   };
 
+  const handleUpdateRoadmap = async () => {
+    if (pendingAmendments.length === 0) return;
+    try {
+      setIsUpdatingRoadmap(true);
+      const res = await fetch(`/api/products/${productId}/roadmap/amend`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amendments: pendingAmendments }),
+      });
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update roadmap');
+      
+      // Dismiss the alerts so they no longer show in the banner
+      pendingAmendments.forEach(a => {
+        dismiss(a.id);
+      });
+      
+      // Refresh page to see new steps
+      window.location.reload();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsUpdatingRoadmap(false);
+    }
+  };
+
   // ─── 3. TOGGLE STEP COMPLETION (PATCH) ───────────────────────
-  const toggleStepCompletion = async (stepId: string, currentStatus: string, e: React.MouseEvent) => {
+  const toggleStepCompletion = async (stepId: string, currentStatus: StepStatus, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent expanding the accordion
     const newStatus = currentStatus === 'COMPLETED' ? 'PENDING' : 'COMPLETED';
     
@@ -182,6 +230,35 @@ export default function RoadmapPage() {
         </div>
       )}
 
+      {pendingAmendments.length > 0 && (
+        <div className="mb-8 p-6 rounded-xl border-2 border-emerald-500/30 bg-emerald-50 dark:bg-emerald-900/10 animate-fade-in shadow-sm">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-bold text-emerald-800 dark:text-emerald-400 flex items-center gap-2">
+                <AlertTriangle size={20} />
+                New Standard Updates Available
+              </h3>
+              <p className="text-sm text-emerald-700/80 dark:text-emerald-300/80 mt-1 max-w-xl">
+                There are {pendingAmendments.length} new standard amendments that affect your product category.
+                Update your roadmap to generate new compliance tasks based on these changes.
+              </p>
+            </div>
+            <button
+              onClick={handleUpdateRoadmap}
+              disabled={isUpdatingRoadmap}
+              className="btn flex-shrink-0 text-white font-bold px-4 py-2 rounded-lg"
+              style={{ background: 'var(--color-primary-600)' }}
+            >
+              {isUpdatingRoadmap ? (
+                <><Loader2 size={16} className="animate-spin inline mr-2" /> Updating...</>
+              ) : (
+                'Update Roadmap'
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
       {steps.length === 0 ? (
         <div className="card p-12 text-center flex flex-col items-center">
           <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center text-primary mb-4">
@@ -271,7 +348,7 @@ export default function RoadmapPage() {
                       <div className="mt-4 pl-10 animate-fade-in">
                         <SourcedClaim
                           content={step.description}
-                          confidenceLevel={(step.confidenceLevel === 'HIGH' ? 'VERIFIED_BIS_DATA' : step.confidenceLevel) as any}
+                          confidenceLevel={step.confidenceLevel}
                           sources={
                             step.sourceClause
                               ? [

@@ -14,6 +14,12 @@ export default function IngestionPage() {
   const [inputProduct, setInputProduct] = useState('');
   const [inputUrl, setInputUrl] = useState('');
 
+  // Hackathon Demo State
+  const [demoOldText, setDemoOldText] = useState('Clause 19.1: Heating appliances shall be subjected to an abnormal operation test. The thermal cut-out shall operate safely. The test duration is 30 minutes. The maximum allowable temperature is 95°C.');
+  const [demoNewText, setDemoNewText] = useState('Clause 19.1: Heating appliances shall be subjected to an abnormal operation test. The thermal cut-out shall operate safely. The test duration is 60 minutes. A dual thermal protection system is mandatory. The maximum allowable temperature is 90°C.');
+  const [isDemoRunning, setIsDemoRunning] = useState(false);
+  const [demoResult, setDemoResult] = useState<any>(null);
+
   useEffect(() => {
     fetchJobs();
     const interval = setInterval(fetchJobs, 5000); // Poll every 5s
@@ -60,6 +66,31 @@ export default function IngestionPage() {
       alert(`Error: ${err.message}`);
     } finally {
       setIsStarting(false);
+    }
+  };
+
+  const handleRunDemoDiff = async () => {
+    setIsDemoRunning(true);
+    setDemoResult(null);
+    try {
+      const res = await fetch('/api/alerts/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          standardNumber: 'IS 302-2-15',
+          title: 'Amendment No. 3 — Updated Thermal Cut-out Requirements',
+          oldText: demoOldText,
+          newText: demoNewText,
+          categories: ['Domestic Electric Appliances']
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to run LLM diff');
+      setDemoResult(data);
+    } catch (err: any) {
+      alert(`Demo Error: ${err.message}`);
+    } finally {
+      setIsDemoRunning(false);
     }
   };
 
@@ -189,6 +220,59 @@ export default function IngestionPage() {
           </div>
         )}
       </div>
+
+      {/* HACKATHON DEMO PANEL */}
+      <div className="card p-6 border-t-4 mt-8" style={{ borderTopColor: 'var(--color-interpretation-500)', background: 'var(--color-interpretation-50)' }}>
+        <h2 className="text-xl font-bold mb-2 flex items-center gap-2" style={{ color: 'var(--color-interpretation-700)' }}>
+          <AlertTriangle size={24} /> Hackathon Demo: Real-Data LLM Diffing
+        </h2>
+        <p className="text-sm text-gray-700 mb-6 max-w-3xl">
+          Use this panel during your pitch to simulate the BIS releasing a new standard update. 
+          The Groq LLM will instantly diff the texts below, extract compliance changes, and push an alert to your users.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div>
+            <label className="block text-sm font-bold text-gray-800 mb-2">Old Standard Text</label>
+            <textarea
+              className="w-full h-32 p-3 text-sm rounded border border-gray-300 bg-white"
+              value={demoOldText}
+              onChange={e => setDemoOldText(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-emerald-800 mb-2">New Standard Text (Updated)</label>
+            <textarea
+              className="w-full h-32 p-3 text-sm rounded border border-emerald-300 bg-emerald-50 focus:ring-emerald-500"
+              value={demoNewText}
+              onChange={e => setDemoNewText(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <button
+          onClick={handleRunDemoDiff}
+          disabled={isDemoRunning}
+          className="w-full py-4 rounded-xl font-bold text-white text-lg flex items-center justify-center gap-2 transition-all shadow-lg hover:shadow-xl"
+          style={{ background: 'linear-gradient(135deg, var(--color-interpretation-600), var(--color-interpretation-700))' }}
+        >
+          {isDemoRunning ? (
+            <><Loader2 className="animate-spin" /> Generating Diff via Groq LLM...</>
+          ) : (
+            <><Activity size={24} /> Run LLM Diff Engine</>
+          )}
+        </button>
+
+        {demoResult && (
+          <div className="mt-6 p-4 rounded bg-white border border-gray-200">
+            <h3 className="font-bold text-emerald-600 mb-2">✅ Success! Alert Inserted into Database</h3>
+            <pre className="text-xs bg-gray-900 text-green-400 p-4 rounded overflow-x-auto">
+              {JSON.stringify(demoResult, null, 2)}
+            </pre>
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }

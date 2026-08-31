@@ -141,7 +141,7 @@ export interface ComplianceEvidence {
   createdAt: string;
 }
 
-// ─── Amendment Types (Tier 3 — Mock) ──────────────────
+// ─── Amendment Types ──────────────────────────────────
 
 export interface SimulatedAmendment {
   id: string;
@@ -151,6 +151,30 @@ export interface SimulatedAmendment {
   affectedClause?: string;
   severity: 'REVIEW_RECOMMENDED' | 'POTENTIAL_IMPACT' | 'INFORMATION_ONLY';
   publishedDate: string;
+  /** Specific changes introduced by this amendment */
+  whatChanged?: string[];
+  /** Recommended actions for affected manufacturers */
+  recommendedActions?: string[];
+  /** Product categories affected by this amendment (for filtering) */
+  affectedProductCategories?: string[];
+}
+
+// ─── Alert Types ──────────────────────────────────────
+
+export interface ProductAlert {
+  amendment: SimulatedAmendment;
+  /** Products from the user's workspace that are affected */
+  affectedProducts: Product[];
+  /** AI-generated impact analysis (optional, from LLM) */
+  aiAnalysis?: {
+    impactSummary: string;
+    actionItems: string[];
+    riskLevel: 'HIGH' | 'MEDIUM' | 'LOW';
+  };
+  /** Whether this alert has been read */
+  isRead: boolean;
+  /** Whether this alert has been dismissed */
+  isDismissed: boolean;
 }
 
 // ─── Lab Types (Tier 3 — Static) ──────────────────────

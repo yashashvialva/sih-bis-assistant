@@ -14,11 +14,13 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n/useTranslation';
+import { useAlerts, doesAmendmentAffectProduct } from '@/hooks/useAlerts';
 
 export default function ProductWorkspacePage() {
   const params = useParams();
   const productId = params.id as string;
   const { t } = useTranslation();
+  const { alerts } = useAlerts();
 
   const [product, setProduct] = useState<any>(null);
   const [mappedStandards, setMappedStandards] = useState<any[]>([]);
@@ -192,6 +194,31 @@ export default function ProductWorkspacePage() {
           </div>
         )}
       </div>
+
+      {/* Banner for Pending Amendments */}
+      {product && alerts.some(a => !a.isDismissed && doesAmendmentAffectProduct(a.amendment, product)) && (
+        <div className="mb-8 p-6 rounded-xl border-2 border-emerald-500/30 bg-emerald-50 dark:bg-emerald-900/10 animate-fade-in shadow-sm">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-bold text-emerald-800 dark:text-emerald-400 flex items-center gap-2">
+                <AlertTriangle size={20} />
+                ACTION REQUIRED: New Standard Updates Available
+              </h3>
+              <p className="text-sm text-emerald-700/80 dark:text-emerald-300/80 mt-1 max-w-xl">
+                There are new standard amendments that directly affect this product. 
+                Please open your compliance roadmap to generate the new mandatory compliance tasks based on these changes.
+              </p>
+            </div>
+            <Link
+              href={`/products/${product.id}/roadmap`}
+              className="btn flex-shrink-0 text-white font-bold px-4 py-2 rounded-lg"
+              style={{ background: 'var(--color-primary-600)' }}
+            >
+              Open Roadmap
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Roadmap Section */}
       <div className="mb-8">
