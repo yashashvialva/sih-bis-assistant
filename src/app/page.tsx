@@ -102,17 +102,7 @@ export default function LandingPage() {
         />
 
         <div className="max-w-4xl mx-auto text-center relative z-10">
-          <div
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium mb-6"
-            style={{
-              background: 'rgba(255, 255, 255, 0.1)',
-              color: 'rgba(255, 255, 255, 0.9)',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-            }}
-          >
-            <Sparkles size={14} />
-            SIH Problem Statement 26107
-          </div>
+
 
           <h1
             className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6 tracking-tight"
@@ -220,15 +210,7 @@ export default function LandingPage() {
                   >
                     <feature.icon size={20} color="white" />
                   </div>
-                  <span
-                    className="text-xs font-medium px-2 py-0.5 rounded-full"
-                    style={{
-                      background: 'var(--color-surface-elevated)',
-                      color: 'var(--color-text-muted)',
-                    }}
-                  >
-                    {feature.tier}
-                  </span>
+
                 </div>
                 <h3
                   className="font-semibold text-base mb-2"

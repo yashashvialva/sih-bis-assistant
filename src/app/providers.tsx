@@ -17,10 +17,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           }}
         >
           <p>
-            BIS Compliance Assistant — Built for SIH Problem Statement 26107
-          </p>
-          <p className="mt-1">
-            This application is not affiliated with or endorsed by the Bureau of Indian Standards.
+            BIS Compliance Assistant
           </p>
         </footer>
       </div>

@@ -103,7 +103,7 @@ export default function ProductsPage() {
             }}
           >
             <Sparkles size={12} />
-            Tier 1 — Compliance Workspace
+            Compliance Workspace
           </div>
           <h1
             className="text-3xl font-bold"

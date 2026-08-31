@@ -11,7 +11,10 @@ import {
   Search,
   ExternalLink,
   Edit2,
-  FileText
+  FileText,
+  MapPin,
+  Send,
+  Info
 } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 
@@ -20,20 +23,23 @@ type InputMethod = 'PHOTO' | 'UPLOAD' | 'MANUAL';
 
 export default function VerifyPage() {
   const { t } = useTranslation();
-  
+
   const [step, setStep] = useState<VerifyStep>('HOME');
   const [inputType, setInputType] = useState<InputMethod>('MANUAL');
-  
+
   const [licenceNumber, setLicenceNumber] = useState('');
   const [confidence, setConfidence] = useState<number | null>(null);
   const [extractedRawText, setExtractedRawText] = useState<string | null>(null);
-  
+
   const [pastedResult, setPastedResult] = useState('');
   const [officialSourceUrl, setOfficialSourceUrl] = useState('');
 
   const [officialResult, setOfficialResult] = useState<any>(null);
   const [aiExplanation, setAiExplanation] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  
+  const [isReporting, setIsReporting] = useState(false);
+  const [reportStatus, setReportStatus] = useState<'idle' | 'requesting_location' | 'drafting' | 'ready' | 'error'>('idle');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -59,6 +65,8 @@ export default function VerifyPage() {
     setOfficialResult(null);
     setAiExplanation(null);
     setError(null);
+    setIsReporting(false);
+    setReportStatus('idle');
     stopCamera();
   };
 
@@ -71,12 +79,12 @@ export default function VerifyPage() {
     }
 
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment' } 
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' }
       });
       streamRef.current = mediaStream;
       setStep('CAMERA_VIEW');
-      
+
       // Small timeout to ensure video element is rendered before attaching stream
       setTimeout(() => {
         if (videoRef.current) {
@@ -108,9 +116,9 @@ export default function VerifyPage() {
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    
+
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    
+
     canvas.toBlob((blob) => {
       if (!blob) return;
       stopCamera();
@@ -133,12 +141,12 @@ export default function VerifyPage() {
         method: 'POST',
         body: formData,
       });
-      
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to extract text');
-      
+
       const { result } = data;
-      
+
       if (result.licenceNumber) {
         setLicenceNumber(result.licenceNumber);
         setConfidence(result.confidence);
@@ -172,11 +180,11 @@ export default function VerifyPage() {
   const moveToInteractiveVerification = () => {
     // Generate appropriate URL for the user to visit
     const isRNumber = licenceNumber.toUpperCase().startsWith('R-');
-    const url = isRNumber 
+    const url = isRNumber
       ? 'https://www.crsbis.in/BIS/crsreglist.do'
       : 'https://www.manakonline.in/MANAK/ApplicationLicenceRelatedrpt#StatusofLicences';
     setOfficialSourceUrl(url);
-    
+
     // As requested, log the UNAVAILABLE status silently here or let the backend do it.
     // To keep it simple, we will proceed to the UI step.
     setStep('UNAVAILABLE_INFO');
@@ -217,9 +225,65 @@ export default function VerifyPage() {
     }
   };
 
+  // ─── 5. REPORT FAKE PRODUCT ────────────────────────────────
+  const handleReportFake = () => {
+    setIsReporting(true);
+    setReportStatus('requesting_location');
+
+    if (!navigator.geolocation) {
+      generateEmailReport(null);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        generateEmailReport(position.coords);
+      },
+      (error) => {
+        console.warn("GPS access denied or failed.", error);
+        generateEmailReport(null);
+      },
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+    );
+  };
+
+  const generateEmailReport = (coords: GeolocationCoordinates | null) => {
+    setReportStatus('drafting');
+    const subject = encodeURIComponent(`Suspected BIS Non-Compliant Product — ${licenceNumber}`);
+    
+    let body = `Dear Sir/Madam,\n\nI would like to report a product for possible BIS non-compliance based on the official BIS verification result available to me.\n\n`;
+    
+    body += `Licence/Registration Number: ${licenceNumber}\n`;
+    body += `Product: ${officialResult?.productName || 'Unknown'}\n`;
+    body += `Applicable Standard: ${officialResult?.standardNumber || 'Unknown'}\n`;
+    body += `Official Verification Status: ${officialResult?.status?.replace('_', ' ') || 'INVALID'}\n`;
+    body += `Date & Time of Report: ${new Date().toLocaleString()}\n\n`;
+    
+    body += `Location where the product was observed:\n`;
+    if (coords) {
+      const mapsLink = `https://www.google.com/maps?q=${coords.latitude},${coords.longitude}`;
+      body += `Latitude: ${coords.latitude}\n`;
+      body += `Longitude: ${coords.longitude}\n`;
+      body += `Google Maps: ${mapsLink}\n\n`;
+    } else {
+      body += `[Please specify the shop/location where this was found here]\n\n`;
+    }
+
+    body += `Additional Product Details:\n[Please add any other relevant details here]\n\n`;
+    body += `I request BIS to verify and investigate this matter as appropriate.\n\n`;
+    body += `Regards,\nBIS Compliance Assistant User`;
+
+    const mailtoLink = `mailto:complaints@bis.gov.in?subject=${subject}&body=${encodeURIComponent(body)}`;
+    
+    setTimeout(() => {
+      setReportStatus('ready');
+      setIsReporting(false);
+      window.location.href = mailtoLink;
+    }, 1000);
+  };
 
   // ─── RENDERERS ─────────────────────────────────────────────
-  
+
   if (step === 'HOME') {
     return (
       <div className="max-w-2xl mx-auto px-4 py-12 animate-fade-in text-center">
@@ -309,8 +373,8 @@ export default function VerifyPage() {
           {step === 'EXTRACTING' ? 'Scanning Image...' : 'Analyzing Official Result...'}
         </h2>
         <p className="text-muted-foreground">
-          {step === 'EXTRACTING' 
-            ? 'Running local OCR to detect BIS identifiers...' 
+          {step === 'EXTRACTING'
+            ? 'Running local OCR to detect BIS identifiers...'
             : 'Using AI to parse and structure the official BIS data...'}
         </p>
       </div>
@@ -325,7 +389,7 @@ export default function VerifyPage() {
         </div>
         <h2 className="text-2xl font-bold mb-2">Identifier Detected</h2>
         <p className="text-muted-foreground mb-8">We found the following BIS Licence Number. You may edit it if it is incorrect.</p>
-        
+
         <div className="mb-8">
           <label className="block text-sm font-medium mb-2 text-left text-muted-foreground">
             Detected Number <span className="font-normal text-xs">(Confidence: {confidence ? (confidence * 100).toFixed(0) : 0}%)</span>
@@ -357,7 +421,7 @@ export default function VerifyPage() {
             Interactive Verification Required
           </h2>
           <p className="text-muted-foreground mb-6 text-sm md:text-base">
-            The official BIS portal requires interactive human verification (CAPTCHA) to prevent automated abuse. 
+            The official BIS portal requires interactive human verification (CAPTCHA) to prevent automated abuse.
             To verify this licence, please follow these steps:
           </p>
 
@@ -376,9 +440,9 @@ export default function VerifyPage() {
               <span className="text-xs font-semibold text-muted-foreground uppercase">Licence to Check</span>
               <div className="text-xl font-mono font-bold mt-1">{licenceNumber}</div>
             </div>
-            <a 
-              href={officialSourceUrl} 
-              target="_blank" 
+            <a
+              href={officialSourceUrl}
+              target="_blank"
               rel="noreferrer"
               className="btn btn-primary whitespace-nowrap shadow-sm w-full md:w-auto"
             >
@@ -394,20 +458,20 @@ export default function VerifyPage() {
             <p className="text-xs text-muted-foreground mb-3">
               After checking the official portal, copy the text results they provide and paste them here. Our AI will analyze the official data.
             </p>
-            
+
             {error && (
               <div className="mb-4 p-3 bg-destructive/10 text-destructive rounded text-sm font-medium">
                 {error}
               </div>
             )}
-            
+
             <textarea
               className="input w-full h-32 mb-4 bg-background resize-y"
               placeholder="Paste the raw text from the BIS portal here..."
               value={pastedResult}
               onChange={(e) => setPastedResult(e.target.value)}
             />
-            <button 
+            <button
               onClick={analyzePastedResult}
               className="btn btn-primary w-full shadow-sm"
               disabled={!pastedResult.trim()}
@@ -464,6 +528,30 @@ export default function VerifyPage() {
               <span>Checked: {new Date(officialResult.checkedAt).toLocaleString()}</span>
             </div>
           </div>
+        ) : officialResult.status === 'UNAVAILABLE' ? (
+          <div className="card p-8 border-orange-200 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-900 mb-6">
+            <div className="flex items-center gap-3 mb-4">
+              <AlertTriangle size={32} className="text-orange-500" />
+              <h2 className="text-2xl font-bold text-orange-900 dark:text-orange-100">
+                ⚠️ Official verification required
+              </h2>
+            </div>
+            <p className="text-sm text-orange-800 dark:text-orange-300 mb-6">
+              We could not automatically verify this licence. This does NOT mean the product is fake. Please verify it manually on the official BIS portal.
+            </p>
+            <div className="bg-background/50 p-4 rounded-lg mb-6">
+              <span className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Licence Number</span>
+              <span className="font-mono font-medium">{officialResult.licenceNumber}</span>
+            </div>
+            <a 
+              href={officialSourceUrl} 
+              target="_blank" 
+              rel="noreferrer"
+              className="btn bg-orange-600 hover:bg-orange-700 text-white w-full justify-center shadow-sm"
+            >
+              Verify on Official BIS <ExternalLink size={16} className="ml-1" />
+            </a>
+          </div>
         ) : (
           <div className="card p-8 border-destructive/20 bg-destructive/5 mb-6">
             <div className="flex items-center gap-3 mb-6">
@@ -472,10 +560,64 @@ export default function VerifyPage() {
                 OFFICIAL BIS RESULT: {officialResult.status.replace('_', ' ')}
               </h2>
             </div>
-            <div className="bg-background/50 p-4 rounded-lg">
+            
+            <div className="bg-background/50 p-4 rounded-lg mb-6">
               <span className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Licence Number</span>
               <span className="font-mono font-medium">{officialResult.licenceNumber}</span>
             </div>
+
+            <div className="bg-destructive/10 border border-destructive/20 p-4 rounded-lg mb-6 text-sm text-destructive">
+              <div className="flex gap-2">
+                <Info size={18} className="shrink-0 mt-0.5" />
+                <p>
+                  <strong>Suspected counterfeit / invalid BIS product.</strong><br/>
+                  The physical product claims BIS certification, but the official status is {officialResult.status}. This matter should be investigated by BIS/enforcement authorities.
+                </p>
+              </div>
+            </div>
+
+            <button 
+              onClick={handleReportFake}
+              disabled={isReporting}
+              className="w-full flex flex-col items-center justify-center gap-1 bg-destructive text-destructive-foreground hover:bg-destructive/90 py-4 px-6 rounded-xl font-bold shadow-lg transition-all"
+            >
+              <div className="flex items-center gap-2 text-lg">
+                {reportStatus === 'idle' && (
+                  <>
+                    <AlertTriangle size={24} />
+                    🚨 Report Suspected Counterfeit / Invalid Product
+                  </>
+                )}
+                {reportStatus === 'requesting_location' && (
+                  <>
+                    <MapPin className="animate-bounce" size={24} />
+                    Requesting Location...
+                  </>
+                )}
+                {reportStatus === 'drafting' && (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Drafting Complaint...
+                  </>
+                )}
+                {reportStatus === 'ready' && (
+                  <>
+                    <Send size={24} />
+                    Opening Email Client...
+                  </>
+                )}
+              </div>
+              {reportStatus === 'idle' && (
+                <span className="text-xs font-normal opacity-80">Includes GPS location & product details</span>
+              )}
+            </button>
+
+            {reportStatus === 'ready' && (
+              <p className="mt-4 text-sm text-center text-destructive font-medium bg-destructive/10 py-2 rounded-lg">
+                Complaint draft prepared. Please review the details and send it from your email client.
+              </p>
+            )}
+
             <div className="mt-6 pt-4 border-t border-destructive/10 flex justify-between text-xs text-destructive/70">
               <span>Source: Official BIS (User Provided)</span>
               <span>Checked: {new Date(officialResult.checkedAt).toLocaleString()}</span>

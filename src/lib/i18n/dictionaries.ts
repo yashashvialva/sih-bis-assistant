@@ -57,7 +57,7 @@ const dictionaries: Record<SupportedLanguage, Record<string, string>> = {
     'verify.match': 'Verified against BIS data',
     'verify.noMatch': 'No matching record found.',
     'verify.noMatchDisclaimer': 'This does not confirm that the product or licence is invalid. Verify directly with BIS.',
-    'products.workspace': 'Tier 1 — Compliance Workspace',
+    'products.workspace': 'Compliance Workspace',
     'products.applicableStandards': 'Applicable BIS Standards',
     'roadmap.ready': 'Evidence-Backed Roadmap Ready',
     'roadmap.openInteractive': 'Open Interactive Roadmap & To-Do List',
