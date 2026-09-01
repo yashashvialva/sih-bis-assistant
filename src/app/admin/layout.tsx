@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ShieldCheck, Database, FileText, Activity } from 'lucide-react';
+import { ShieldCheck, Database, FileText, Activity, FlaskConical } from 'lucide-react';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -12,6 +12,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { href: '/admin/sources', label: 'Trusted Sources', icon: Database },
     { href: '/admin/documents', label: 'Document Verification', icon: ShieldCheck },
     { href: '/admin/ingestion', label: 'Ingestion Pipeline', icon: Activity },
+    { href: '/admin/labs', label: 'BIS LIMS Labs', icon: FlaskConical },
   ];
 
   return (
