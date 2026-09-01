@@ -15,6 +15,7 @@ import {
   Home,
 } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n/useTranslation';
+import { NotificationBell } from '@/components/layout/NotificationBell';
 
 const NAV_ITEMS = [
   { href: '/', icon: Home, labelKey: 'nav.home' },
@@ -94,8 +95,9 @@ export function Header() {
             })}
           </nav>
 
-          {/* Language Dropdown + Mobile Menu */}
+          {/* Notification Bell + Language Dropdown + Mobile Menu */}
           <div className="flex items-center gap-2">
+            <NotificationBell />
             <div className="relative flex items-center">
               <Globe size={16} className="absolute left-2 text-muted-foreground pointer-events-none" />
               <select

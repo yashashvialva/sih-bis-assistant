@@ -46,7 +46,15 @@ export default function AssistantPage() {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query }),
+        body: JSON.stringify({
+          query,
+          history: messages.slice(-4).map(m => ({
+            role: m.role,
+            content: m.role === 'assistant'
+              ? JSON.stringify({ answer: m.content, claims: [] })
+              : m.content
+          }))
+        }),
       });
 
       if (!response.ok) {
@@ -54,7 +62,7 @@ export default function AssistantPage() {
       }
 
       const data = await response.json();
-      
+
       const assistantMessage: ChatMessage = {
         id: `msg-${Date.now()}-assistant`,
         role: 'assistant',
@@ -172,9 +180,8 @@ export default function AssistantPage() {
             messages.map(msg => (
               <div
                 key={msg.id}
-                className={`animate-fade-in ${
-                  msg.role === 'user' ? 'flex justify-end' : ''
-                }`}
+                className={`animate-fade-in ${msg.role === 'user' ? 'flex justify-end' : ''
+                  }`}
               >
                 {msg.role === 'user' ? (
                   <div

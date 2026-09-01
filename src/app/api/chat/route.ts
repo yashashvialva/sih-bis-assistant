@@ -8,7 +8,7 @@ import type { SourcedClaimData } from '@/lib/types';
 
 export async function POST(req: Request) {
   try {
-    const { query } = await req.json();
+    const { query, history = [] } = await req.json();
 
     if (!query) {
       return NextResponse.json({ error: 'Query is required' }, { status: 400 });
@@ -60,7 +60,8 @@ Do not invent:
 - licence information
 - laboratory information
 
-If the supplied authoritative context does not contain enough evidence, answer that you do not have the information.
+If the supplied authoritative context does not contain enough evidence, answer that you do not have the information by placing that response inside the "answer" field of the JSON object and leaving "claims" empty. NEVER output plain text refusals.
+However, you MUST also refer to the conversation history to understand context if the user's query refers back to previous topics.
 
 Do not provide chain-of-thought or hidden reasoning.
 Instead provide a concise evidence-based explanation and cite the exact SOURCE CHUNK IDs used.
@@ -68,9 +69,9 @@ Instead provide a concise evidence-based explanation and cite the exact SOURCE C
 Never claim that a product is legally compliant or non-compliant.
 The system provides informational compliance guidance only.
 
-Respond in JSON format with the following structure:
+You MUST respond in VALID JSON format with the exact following structure. Do NOT add markdown formatting (like \`\`\`json) around the response, just output the raw JSON object:
 {
-  "answer": "Concise summary answering the user's question.",
+  "answer": "Concise summary answering the user's question, or a statement that the information is not available.",
   "claims": [
     {
       "text": "Specific claim or requirement",
@@ -93,6 +94,8 @@ ${contextText}`;
       model: AI_CONFIG.llmModel,
       messages: [
         { role: 'system', content: systemPrompt },
+        ...history,
+        { role: 'system', content: 'CRITICAL: You must ALWAYS respond with a raw JSON object matching the requested schema. Never reply with plain text or markdown code blocks. If you lack information, state it inside the JSON "answer" field.' },
         { role: 'user', content: query },
       ],
       response_format: { type: 'json_object' },

@@ -40,6 +40,25 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       m.source_documents.authoritative === true
     );
 
+    // Fallback to demo standards if no DB mapping exists (for open demo system)
+    if (mappedStandards.length === 0) {
+      const { DEMO_STANDARDS } = await import('@/lib/mock-data/seedData');
+      const demoMatches = DEMO_STANDARDS.filter(
+        s => s.productCategory.toLowerCase() === product.category.toLowerCase()
+      );
+      
+      mappedStandards = demoMatches.map(ds => ({
+        id: `mock-mapping-${ds.id}`,
+        product_category: ds.productCategory,
+        standard_number: ds.standardNumber,
+        source_documents: {
+          verification_status: 'AUTHORITATIVE',
+          authoritative: true,
+          title: ds.title
+        }
+      }));
+    }
+
     return NextResponse.json({ 
       product,
       mappedStandards

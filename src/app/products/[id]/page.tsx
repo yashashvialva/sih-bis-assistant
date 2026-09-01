@@ -14,11 +14,13 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n/useTranslation';
+import { useAlerts, doesAmendmentAffectProduct } from '@/hooks/useAlerts';
 
 export default function ProductWorkspacePage() {
   const params = useParams();
   const productId = params.id as string;
   const { t } = useTranslation();
+  const { alerts } = useAlerts();
 
   const [product, setProduct] = useState<any>(null);
   const [mappedStandards, setMappedStandards] = useState<any[]>([]);
@@ -178,7 +180,7 @@ export default function ProductWorkspacePage() {
                   <h3 className="font-bold text-lg text-foreground">{mapping.standard_number}</h3>
                   <p className="text-sm text-muted-foreground">{mapping.description}</p>
                 </div>
-                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-full text-xs font-bold whitespace-nowrap">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-bold whitespace-nowrap">
                   <ShieldCheck size={14} />
                   AUTHORITATIVE BIS DATA
                 </div>
@@ -192,6 +194,60 @@ export default function ProductWorkspacePage() {
           </div>
         )}
       </div>
+
+      {/* Banner for Pending Amendments */}
+      {(() => {
+        if (!product) return null;
+        const relevantAlerts = alerts.filter(a => !a.isDismissed && doesAmendmentAffectProduct(a.amendment, product));
+        if (relevantAlerts.length === 0) return null;
+        
+        const hasPotentialImpact = relevantAlerts.some(a => a.amendment.severity === 'POTENTIAL_IMPACT');
+        const hasReviewRecommended = relevantAlerts.some(a => a.amendment.severity === 'REVIEW_RECOMMENDED');
+        
+        let colorClasses = "border-sky-500/30 bg-sky-50";
+        let textClasses = "text-sky-800";
+        let subTextClasses = "text-sky-700/80";
+        let icon = <Info size={20} />;
+        let title = "INFORMATION: New Standard Updates Available";
+        
+        if (hasPotentialImpact) {
+          colorClasses = "border-rose-500/30 bg-rose-50";
+          textClasses = "text-rose-800";
+          subTextClasses = "text-rose-700/80";
+          icon = <AlertTriangle size={20} />;
+          title = "ACTION REQUIRED: New Standard Updates Available";
+        } else if (hasReviewRecommended) {
+          colorClasses = "border-amber-500/30 bg-amber-50";
+          textClasses = "text-amber-800";
+          subTextClasses = "text-amber-700/80";
+          icon = <AlertTriangle size={20} />;
+          title = "REVIEW RECOMMENDED: New Standard Updates Available";
+        }
+
+        return (
+          <div className={`mb-8 p-6 rounded-xl border-2 animate-fade-in shadow-sm ${colorClasses}`}>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <h3 className={`text-lg font-bold flex items-center gap-2 ${textClasses}`}>
+                  {icon}
+                  {title}
+                </h3>
+                <p className={`text-sm mt-1 max-w-xl ${subTextClasses}`}>
+                  There are new standard amendments that directly affect this product. 
+                  Please open your compliance roadmap to generate the new mandatory compliance tasks based on these changes.
+                </p>
+              </div>
+              <Link
+                href={`/products/${product.id}/roadmap`}
+                className="btn flex-shrink-0 text-white font-bold px-4 py-2 rounded-lg"
+                style={{ background: 'var(--color-primary-600)' }}
+              >
+                Open Roadmap
+              </Link>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Roadmap Section */}
       <div className="mb-8">

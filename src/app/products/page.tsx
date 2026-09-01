@@ -10,14 +10,18 @@ import {
   Trash2,
   ChevronRight,
   Sparkles,
+  AlertTriangle,
 } from 'lucide-react';
 import type { Product } from '@/lib/types';
+import { useAlerts, doesAmendmentAffectProduct } from '@/hooks/useAlerts';
 
 export default function ProductsPage() {
   const { t } = useTranslation();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  const { alerts } = useAlerts();
   
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
@@ -26,7 +30,22 @@ export default function ProductsPage() {
     category: '',
   });
 
-  const DEMO_CATEGORIES = ['Electric Kettle', 'Ceiling Fan', 'LED Lamp', 'Air Conditioner', 'Microwave Oven'];
+  useEffect(() => {
+    console.log('[DEBUG ProductsPage] alerts:', alerts);
+    console.log('[DEBUG ProductsPage] products:', products);
+  }, [alerts, products]);
+
+  const DEMO_CATEGORIES = [
+    'Domestic Electric Appliances',
+    'Steel Products',
+    'Textiles',
+    'Electronics',
+    'Electric Kettle',
+    'Ceiling Fan',
+    'LED Lamp',
+    'Air Conditioner',
+    'Microwave Oven'
+  ];
 
   useEffect(() => {
     fetchProducts();
@@ -34,7 +53,7 @@ export default function ProductsPage() {
 
   const fetchProducts = async () => {
     try {
-      const res = await fetch('/api/products');
+      const res = await fetch('/api/products', { cache: 'no-store' });
       if (!res.ok) throw new Error('Failed to fetch products');
       const data = await res.json();
       setProducts(data.products || []);
@@ -253,15 +272,26 @@ export default function ProductsPage() {
                   <Package size={18} color="white" />
                 </div>
                 <div className="min-w-0">
-                  <h3
-                    className="font-semibold text-sm truncate"
-                    style={{ color: 'var(--color-text-primary)' }}
-                  >
-                    {product.name}
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3
+                      className="font-semibold text-base truncate"
+                      style={{ color: 'var(--color-text-primary)' }}
+                    >
+                      {product.name}
+                    </h3>
+                    
+                    {/* Warning Indicator if affected by unread alerts */}
+                    {alerts.some(a => !a.isDismissed && doesAmendmentAffectProduct(a.amendment, product)) && (
+                      <div className="flex items-center gap-1 bg-amber-50 text-amber-600 px-2 py-0.5 rounded text-[10px] font-bold border border-amber-200">
+                        <AlertTriangle size={12} />
+                        ACTION REQUIRED
+                      </div>
+                    )}
+                  </div>
+                  
                   <p
-                    className="text-xs truncate"
-                    style={{ color: 'var(--color-text-muted)' }}
+                    className="text-sm truncate"
+                    style={{ color: 'var(--color-text-secondary)' }}
                   >
                     {product.category}
                   </p>

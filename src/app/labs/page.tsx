@@ -13,6 +13,16 @@ import {
 } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 
+const getLocationName = async (lat: number, lon: number): Promise<string> => {
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+    const data = await res.json();
+    return data.address?.city || data.address?.town || data.address?.village || data.address?.county || data.address?.state || 'Your Location';
+  } catch (e) {
+    return 'Your Location';
+  }
+};
+
 // We fetch labs from the backend API instead of static mock data
 export default function LabsPage() {
   const { t } = useTranslation();
@@ -24,7 +34,7 @@ export default function LabsPage() {
   const [locationFilter, setLocationFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [searchMode, setSearchMode] = useState<'nearby' | 'manual'>('nearby');
-  const [userLocation, setUserLocation] = useState<{lat: number, lon: number} | null>(null);
+  const [userLocation, setUserLocation] = useState<{lat: number, lon: number, name?: string} | null>(null);
 
   // Hardcoded for UI since we want user to filter, could also be fetched from API unique values
   const states = useMemo(() => [
@@ -39,9 +49,10 @@ export default function LabsPage() {
   useEffect(() => {
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
-        (position) => {
+        async (position) => {
           const { latitude, longitude } = position.coords;
-          setUserLocation({ lat: latitude, lon: longitude });
+          const name = await getLocationName(latitude, longitude);
+          setUserLocation({ lat: latitude, lon: longitude, name });
           fetchLabs(latitude, longitude);
         },
         (err) => {
@@ -109,9 +120,10 @@ export default function LabsPage() {
       // Re-request location
       setLoading(true);
       navigator.geolocation.getCurrentPosition(
-        (position) => {
+        async (position) => {
           const { latitude, longitude } = position.coords;
-          setUserLocation({ lat: latitude, lon: longitude });
+          const name = await getLocationName(latitude, longitude);
+          setUserLocation({ lat: latitude, lon: longitude, name });
           setSearchMode('nearby');
           fetchLabs(latitude, longitude, undefined, categoryFilter);
         },
@@ -134,7 +146,7 @@ export default function LabsPage() {
         <p className="text-muted-foreground mb-4">Discover verified and accredited BIS testing laboratories near you.</p>
         
         {/* Real Data Notice */}
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
           <CheckCircle size={14} />
           Genuine Authoritative Source Data (BIS LIMS)
         </div>
@@ -199,7 +211,7 @@ export default function LabsPage() {
             </button>
             {searchMode === 'nearby' && userLocation && (
               <span className="text-[10px] text-muted-foreground text-center">
-                Lat: {userLocation.lat.toFixed(4)}, Lon: {userLocation.lon.toFixed(4)}
+                {userLocation.name ? `${userLocation.name} ` : ''}(Lat: {userLocation.lat.toFixed(4)}, Lon: {userLocation.lon.toFixed(4)})
               </span>
             )}
           </div>
@@ -252,7 +264,7 @@ export default function LabsPage() {
                     </h3>
                     <div className="flex items-center gap-2 flex-wrap">
                       {lab.verification_status && (
-                        <span className="badge bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <span className="badge bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
                           <CheckCircle size={10} />
                           {lab.verification_status.replace('_', ' ')}
                         </span>
@@ -304,7 +316,7 @@ export default function LabsPage() {
                         }
                         target="_blank" 
                         rel="noreferrer"
-                        className="text-xs text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 font-medium ml-auto"
+                        className="text-xs text-emerald-600 hover:underline flex items-center gap-1 font-medium ml-auto"
                       >
                         <Map size={12} />
                         Get Directions
