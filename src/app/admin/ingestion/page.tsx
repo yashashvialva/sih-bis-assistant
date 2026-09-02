@@ -20,6 +20,18 @@ export default function IngestionPage() {
   const [isDemoRunning, setIsDemoRunning] = useState(false);
   const [demoResult, setDemoResult] = useState<any>(null);
 
+const DEMO_CATEGORIES = [
+  'Domestic Electric Appliances',
+  'Steel Products',
+  'Textiles',
+  'Electronics',
+  'Electric Kettle',
+  'Ceiling Fan',
+  'LED Lamp',
+  'Air Conditioner',
+  'Microwave Oven'
+];
+
   useEffect(() => {
     fetchJobs();
     const interval = setInterval(fetchJobs, 5000); // Poll every 5s
@@ -118,13 +130,18 @@ export default function IngestionPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Product Category</label>
-            <input 
-              type="text" 
-              className="input w-full" 
-              placeholder="e.g., electric kettle" 
+            <select
+              className="input w-full"
               value={inputProduct}
               onChange={e => setInputProduct(e.target.value)}
-            />
+            >
+              <option value="">Select a category...</option>
+              {DEMO_CATEGORIES.map(cat => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Direct URL (Optional)</label>
