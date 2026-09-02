@@ -4,7 +4,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send, Loader2, MessageSquareText, Sparkles } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { SourcedClaim } from '@/components/trust/SourcedClaim';
-import type { SourcedClaimData } from '@/lib/types';
+import type { SourcedClaimData, Product } from '@/lib/types';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface ChatMessage {
   id: string;
@@ -19,8 +21,18 @@ export default function AssistantPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    fetch('/api/products')
+      .then(res => res.json())
+      .then(data => {
+        if (data.products) setProducts(data.products);
+      })
+      .catch(err => console.error('Failed to fetch products:', err));
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -53,7 +65,12 @@ export default function AssistantPage() {
             content: m.role === 'assistant'
               ? JSON.stringify({ answer: m.content, claims: [] })
               : m.content
-          }))
+          })),
+          userProducts: products.map(p => ({
+            name: p.name,
+            category: p.category,
+            description: p.description,
+          })),
         }),
       });
 
@@ -96,8 +113,10 @@ export default function AssistantPage() {
 
   const EXAMPLE_QUERIES = [
     'What BIS requirements apply to an electric kettle?',
+    'What products do I have in my workspace?',
+    'Which labs can test my products?',
+    'Are there any recent standard alerts that affect me?',
     'What tests are needed for electrical appliance certification?',
-    'What are the marking requirements for household appliances?',
     'Tell me about IS 2062 steel specifications',
   ];
 
@@ -196,12 +215,14 @@ export default function AssistantPage() {
                   </div>
                 ) : (
                   <div className="space-y-3 max-w-full">
-                    <p
-                      className="text-sm mb-2"
+                    <div
+                      className="text-sm mb-2 [&>p]:mb-3 last:[&>p]:mb-0 [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>li]:mb-1 [&>strong]:font-bold [&>a]:text-blue-500 [&>a]:underline"
                       style={{ color: 'var(--color-text-secondary)' }}
                     >
-                      {msg.content}
-                    </p>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {msg.content}
+                      </ReactMarkdown>
+                    </div>
                     {msg.claims?.map(claim => (
                       <SourcedClaim
                         key={claim.id}
