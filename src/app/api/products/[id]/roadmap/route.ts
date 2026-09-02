@@ -104,7 +104,7 @@ export async function POST(
       return NextResponse.json({ error: 'No authoritative standard available.' }, { status: 404 });
     }
 
-    const mappedStandards = authoritativeMappings.map(m => m.standard_number);
+    const mappedStandards = authoritativeMappings.map(m => m.standard_number.replace(/\s+/g, '').toLowerCase());
     const primaryStandardNumber = authoritativeMappings[0]?.standard_number || null;
     
     let actualStandardId = null;
@@ -121,7 +121,7 @@ export async function POST(
     // Step 2: Retrieve Chunks
     const query = `What are the detailed BIS certification requirements, scope, testing, marking and documentation required for ${productName} (${productCategory})? Description: ${productDescription}`;
     const searchResults = await searchCorpusVector(query, 15);
-    const relevantChunks = searchResults.map(r => r.chunk).filter(c => mappedStandards.includes(c.standardNumber));
+    const relevantChunks = searchResults.map(r => r.chunk).filter(c => mappedStandards.includes((c.standardNumber || '').replace(/\s+/g, '').toLowerCase()));
 
     if (relevantChunks.length === 0) {
       return NextResponse.json({ error: 'No evidence chunks retrieved.' }, { status: 404 });

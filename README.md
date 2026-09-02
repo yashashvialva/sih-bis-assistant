@@ -2,53 +2,46 @@
 
 An intelligent, AI-powered compliance and discovery assistant designed for the Bureau of Indian Standards (BIS). This application streamlines the ingestion of technical standards, applies a strict provenance-based trust layer, and provides manufacturers with an interactive RAG (Retrieval-Augmented Generation) chat interface to query compliance requirements.
 
-## Features
+## 🌟 Core Architecture & System Flow
 
-### 1. Automated Standard Discovery & Vector Search
-- **Continuous Monitoring**: The system automatically connects to authorized Bureau of Indian Standards (BIS) catalog sources to crawl and identify newly released technical standards, amendments, and corrigendums.
-- **Vector Database Integration**: Fully integrated with **Supabase `pgvector`**, allowing for rapid semantic similarity search across thousands of technical clauses.
-- **Granular Chunking**: Official PDF standards are parsed via `pdf-parse` and intelligently split into overlapping, context-aware chunks, ensuring that AI responses retain surrounding technical context.
+The system is built on a modern Retrieval-Augmented Generation (RAG) architecture tailored specifically for strict regulatory compliance, ensuring zero hallucinations by strictly citing authoritative standard clauses.
 
-### 2. Strict Provenance Trust Layer
-AI hallucinations are unacceptable in regulatory compliance. We built a strict architectural trust layer to classify all ingested data:
-- **`OFFICIAL_SOURCE`**: Data scraped directly from a `.gov.in` or official BIS domain.
-- **`VERIFIED`**: Data that has undergone human-in-the-loop review for formatting and context accuracy.
-- **`AUTHORITATIVE`**: Fully approved as a primary, binding technical standard corpus. The system explicitly blocks the AI from citing unverified or low-confidence sources for critical compliance questions.
+### 1. The Ingestion Pipeline (Data to Vectors)
+The journey of a standard from PDF to the AI's brain involves three strict phases:
+1. **Discovery (`/api/admin/discover`)**: The system scrapes authorized BIS domains to find URLs for technical standards (e.g., `IS 8148 : 2018`).
+2. **Ingestion & Chunking (`/api/admin/ingest`)**: Official PDFs are downloaded, parsed via `pdf-parse`, and processed by an intelligent chunker (`src/lib/ingestion/chunker.ts`). The chunker slices the document by explicit **Clause Numbers** (e.g., Clause 1.1, 4.2), ensuring highly granular context.
+3. **Vectorization & Trust Layer**: Each chunk is passed through local embedding models (`Xenova/bge-base-en-v1.5`) and inserted into Supabase `pgvector` (`bis_chunks`). Crucially, a human-in-the-loop (or script) must mark the document as `AUTHORITATIVE` and map it in the `product_standard_mappings` table before the AI is allowed to use it for roadmap generation.
 
-### 3. Product Compliance Workspace & Dynamic Roadmaps
-- **Digital Twin Portfolio**: Manufacturers can digitally register their physical products (e.g., Electric Kettles, Ceiling Fans) within their workspace.
-- **Automated Standard Mapping**: The system automatically determines which authoritative BIS standards apply to a specific product category based on historical mappings and semantic matching.
-- **Evidence-Backed Roadmaps**: Generates a structured, step-by-step compliance checklist (testing requirements, marking rules, component specifications). Every single roadmap task is explicitly linked to the exact standard clause that mandated it.
+### 2. Product Compliance Workspace & Dynamic Roadmaps
+Manufacturers manage a digital twin portfolio of their physical products. When they request a Compliance Roadmap:
+1. **Mapping**: The system queries `product_standard_mappings` to find the exact `AUTHORITATIVE` standard associated with their product category (e.g., "Air Conditioner" -> "IS 8148 : 2018").
+2. **Vector Retrieval (`searchCorpusVector`)**: It runs a semantic search against the `bis_chunks` table, strictly filtering results to only include chunks belonging to the mapped standard. Space normalization is applied to prevent mismatch bugs (e.g., `IS 8148: 2018` vs `IS 8148 : 2018`).
+3. **LLM Generation**: The retrieved clauses are passed to Groq (`qwen/qwen3.8-27b`). The LLM is strictly instructed to extract testing, scope, and marking requirements *only* from the provided clauses, outputting a structured step-by-step checklist.
+4. **Real-time Progress Tracking**: As users check off roadmap steps in the UI, the backend (`/api/roadmap/step/[stepId]`) dynamically recalculates the total completion percentage across all tasks and updates the central database in real-time.
 
-### 4. Smart Standard Alerts
-- **LLM-Powered Diffing**: When an amendment is released, a Groq-hosted LLM analyzes the difference between the old and new text, automatically computing the severity and specific design impacts.
-- **Targeted Notifications**: The system maps the amendment to affected product categories and pushes real-time, zero-cache alerts to manufacturers.
-- **Roadmap Injection**: With a single click, manufacturers can automatically inject the new compliance requirements (e.g., extended thermal testing durations) directly into their existing product roadmaps.
+### 3. Smart Standard Alerts & LLM Diffing
+When BIS releases an amendment (e.g., updated testing temperatures):
+1. **LLM Diffing Engine (`/api/alerts/generate`)**: An admin provides the old and new text. The LLM acts as a compliance officer, evaluating the severity, summarizing impacts, and listing recommended actions in strict JSON format.
+2. **Targeted Notifications**: The alert is saved to the `amendments` table. The frontend global `useAlerts` hook queries this and cross-references it against the manufacturer's product portfolio.
+3. **Dynamic Roadmap Injection**: Affected products receive an "ACTION REQUIRED" badge. With one click, the manufacturer can inject the LLM-generated recommended actions directly into their existing roadmap as new tasks, instantly resolving the compliance gap.
+
+### 4. RAG-Powered Compliance Chat Assistant
+The assistant (`/api/chat/route.ts`) provides a conversational interface for manufacturers.
+- **Context Awareness**: It pulls the user's active products, current roadmap progress, nearby BIS testing labs, and any active alerts directly into its system prompt.
+- **Strict Provenance**: It performs a semantic search against the authoritative corpus to answer technical questions. Every claim generated by the LLM undergoes backend provenance validation—if a claim cannot be traced back to an explicit source chunk ID, it is flagged as an "AI Interpretation" rather than a legal fact.
+- **Robust JSON Fallbacks**: To handle edge cases where the ultra-fast LLM fails to format its output as strict JSON, the backend implements intelligent `failed_generation` error catching to gracefully deliver the text without crashing the UI.
 
 ### 5. Human-in-the-Loop OCR Verification
-- **Live In-App Camera**: Capture BIS standard marks (ISI marks, CRS marks) directly from the browser using `navigator.mediaDevices`, featuring smart fallbacks for mobile native cameras.
-- **Edge OCR Extraction**: Extracts CM/L (License) or R-numbers entirely on the client side using local `tesseract.js`, ensuring privacy and speed without sending images to a server.
-- **AI-Assisted Verification**: Securely cross-references the extracted numbers against official government portals, using LLMs to parse and structure the unstructured government HTML results for easy human validation.
-
-### 6. RAG-Powered Compliance Chat Assistant
-- **Local Embeddings**: Uses high-performance local embeddings (`Xenova/bge-base-en-v1.5`) via Transformers.js to convert user queries into vector space instantly.
-- **Ultra-Fast LLM Inference**: Leverages Groq's LPU architecture (running `qwen/qwen3.8-27b`) to generate instantaneous, conversational responses.
-- **Citation-First Approach**: The chat assistant refuses to answer compliance questions unless it can directly cite an `AUTHORITATIVE` standard chunk, providing the user with clickable source evidence for every claim.
-
-### 7. Real-Time Multilingual Support
-India's manufacturing sector is highly diverse. The entire interface, including AI chat responses and compliance roadmaps, is dynamically localized in real-time. Supported languages include:
-- English, Hindi (हिंदी), Marathi (मराठी), Telugu (తెలుగు), Tamil (தமிழ்), Kannada (ಕನ್ನಡ), and Malayalam (മലയാളം).
-
-### 8. Admin Ingestion Pipeline
-- A dedicated, secure dashboard for administrators to monitor the health of the vector database.
-- Upload PDF standards, trigger OCR and chunking pipelines, and manually elevate standard chunks from `OFFICIAL_SOURCE` to `AUTHORITATIVE` status.
+- **Live In-App Camera**: Capture BIS standard marks (ISI marks, CRS marks) directly from the browser using `navigator.mediaDevices`.
+- **Edge OCR Extraction**: Extracts CM/L (License) numbers entirely on the client side using local `tesseract.js`, ensuring privacy and speed without sending images to a server.
+- **AI-Assisted Verification**: Securely cross-references the extracted numbers against official portals, using LLMs to structure unstructured HTML results for easy human validation.
 
 ## Tech Stack
 
 - **Framework**: [Next.js 15+](https://nextjs.org/) (App Router, Turbopack)
 - **Database & Vector Store**: [Supabase](https://supabase.com/) with `pgvector`
 - **Embeddings**: `Xenova/bge-base-en-v1.5` (768-dimensional local embeddings via Transformers.js)
-- **LLM Provider**: [Groq](https://groq.com/) (Ultra-fast inference)
+- **LLM Provider**: [Groq](https://groq.com/) (Ultra-fast inference via `qwen/qwen3.8-27b`)
 - **Styling**: Tailwind CSS & Framer Motion
 - **Parsing & OCR**: `pdf-parse`, `tesseract.js`
 
@@ -99,57 +92,16 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Project Structure
 
-- `/src/app/admin`: Admin dashboard for document discovery and ingestion.
+- `/src/app/admin`: Admin dashboard for document discovery, OCR, and chunking pipeline management.
 - `/src/app/assistant`: User-facing RAG chat assistant for compliance queries.
-- `/src/app/products`: The Product Compliance Workspace for manufacturers.
+- `/src/app/products`: The Product Compliance Workspace for manufacturers to manage digital twins and roadmaps.
 - `/src/app/verify`: Human-in-the-loop OCR verification flow with live camera access.
 - `/src/app/labs`: Geographic mapping of nearby BIS testing labs.
-- `/src/lib/ai`: AI configuration, prompt engineering, and LLM clients.
-- `/src/lib/rag`: Vector embedding generation and similarity search logic.
-- `/src/lib/ingestion`: Document parsing, chunking, and pipeline management.
+- `/src/lib/ai`: AI configuration, prompt engineering, JSON fallback logic, and LLM clients.
+- `/src/lib/rag`: Vector embedding generation and semantic similarity search logic.
+- `/src/lib/ingestion`: Document parsing, clause chunking, and pipeline management.
 - `/src/lib/db`: Database schemas and Supabase clients.
-- `/src/lib/i18n`: Static dictionary configurations for multilingual localization.
-
-## Smart Standard Alerts & Dynamic Roadmap Updates
-
-A core feature of the SIH 2026 platform is the **Smart Standard Alerts** system, which actively monitors BIS standards for amendments, corrigendums, and revisions, and automatically notifies manufacturers when a product in their workspace is affected.
-
-### The Data Flow
-
-The flow relies on a mix of LLM-based diffing, centralized state management, and real-time frontend notification indicators:
-
-1. **LLM Diffing Engine (`/api/alerts/generate`)**:
-   - An administrator inputs the old and new text of a standard (e.g., Clause 22.101 for Electric Kettles).
-   - The backend passes this to a Groq LLM model (`qwen/qwen3.8-27b`) configured to strictly output JSON.
-   - The LLM acts as an expert compliance officer: it generates an impact summary, assesses the severity, outlines exactly what changed, computes actionable recommendations, and explicitly targets affected product categories (e.g., `"Electric Kettle"`).
-   - The resulting structured JSON is saved into the Supabase `amendments` table.
-
-2. **Real-time Frontend Synchronization (`/api/alerts`)**:
-   - A global `useAlerts` hook queries `/api/alerts` to retrieve active amendments. To prevent stale caching issues, the system bypasses aggressive Next.js App Router caching (`dynamic = 'force-dynamic'`, `cache: 'no-store'`).
-   - The hook queries `/api/products` (Supabase) simultaneously to retrieve the manufacturer's precise product portfolio.
-   - A case-insensitive matching algorithm (`doesAmendmentAffectProduct`) cross-references the LLM-generated targeted categories against the manufacturer's actual products.
-
-3. **Contextual UI Indicators**:
-   - **Notification Bell**: Universally accessible across the layout, it shows a red dot and alerts for unread changes.
-   - **Products Listing (`/products`)**: Any product affected by an active amendment receives a bold, orange `ACTION REQUIRED` badge dynamically rendered next to its name.
-   - **Product Workspace (`/products/[id]`)**: Once a user opens a flagged product, a large informative banner explains *why* the badge was shown (e.g., "New Standard Updates Available") and provides a direct call-to-action button to the roadmap.
-
-4. **Dynamic Roadmap Injection (`/api/products/[id]/roadmap/amend`)**:
-   - When the user clicks **Update Roadmap**, the backend ingests the LLM's recommended actions and dynamically injects new `COMPLIANCE_UPDATE` tasks directly into the product's existing roadmap.
-   - Once successfully injected, the specific amendment is marked as `isDismissed` on the frontend, gracefully hiding the alert badges without wiping the historical record from the notification center.
-
-### End-to-End Testing Flow (Electric Kettle Demo)
-
-To test the complete lifecycle of a standard amendment:
-
-1. **Create a Product**: Navigate to the Products Workspace (`/products`) and click **Create Product**. Name it "Electrical kettle" and make sure you select the exact category **Electric Kettle**.
-2. **Generate Initial Roadmap**: Click into the newly created product and navigate to its Roadmap. The system will mock an initial compliance pathway for IS 302-2-15.
-3. **Ingest the Amendment**: As an administrator, hit the hidden or backend API route to ingest the new Dry Boil Protection Update amendment targeting the "Electric Kettle" category. (In this project, this can be triggered via a custom node script connecting to Supabase).
-4. **Observe the Alerts**: 
-   - Refresh the page. You will see a notification in the global Bell icon.
-   - Go to the Products Listing (`/products`). You will see an **ACTION REQUIRED** badge next to the kettle.
-   - Click into the Product Workspace. An alert banner will explicitly inform you that standard updates are available.
-5. **Resolve the Compliance Gap**: Click **Open Roadmap**. Click **Update Roadmap**. The system will inject the new 30-second thermal cut-out tests directly into your roadmap checklist, and the alert banners will safely dismiss themselves.
+- `/src/lib/i18n`: Static dictionary configurations for real-time multilingual localization (English, Hindi, Marathi, Telugu, Tamil, Kannada, Malayalam).
 
 ## License
 

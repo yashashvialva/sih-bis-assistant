@@ -185,19 +185,32 @@ ${alertContext}
 ${chunks.length > 0 ? `AUTHORITATIVE BIS STANDARD CHUNKS:\n${contextText}` : 'AUTHORITATIVE BIS STANDARD CHUNKS:\nNo matching standard chunks were retrieved for this query.'}`;
 
     // 4. Call LLM
-    const chatCompletion = await getLLMClient().chat.completions.create({
-      model: AI_CONFIG.llmModel,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...history,
-        { role: 'system', content: 'CRITICAL: You must ALWAYS respond with a raw JSON object matching the requested schema. Never reply with plain text or markdown code blocks. If you lack information, state it inside the JSON "answer" field.' },
-        { role: 'user', content: query },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.1,
-    });
+    let responseText = '{}';
+    try {
+      const chatCompletion = await getLLMClient().chat.completions.create({
+        model: AI_CONFIG.llmModel,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...history,
+          { role: 'system', content: 'CRITICAL: You must ALWAYS respond with a raw JSON object matching the requested schema. Never reply with plain text or markdown code blocks. If you lack information, state it inside the JSON "answer" field.' },
+          { role: 'user', content: query + '\n\nIMPORTANT: Your entire response must be a single valid JSON object.' },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.1,
+      });
+      responseText = chatCompletion.choices[0]?.message?.content || '{}';
+    } catch (llmError: any) {
+      if (llmError.status === 400 && llmError.error?.failed_generation) {
+        console.warn('Groq JSON validation failed, using raw output as answer fallback');
+        responseText = JSON.stringify({
+          answer: llmError.error.failed_generation,
+          claims: []
+        });
+      } else {
+        throw llmError;
+      }
+    }
 
-    const responseText = chatCompletion.choices[0]?.message?.content || '{}';
     const parsedResponse = JSON.parse(responseText);
 
     const generatedClaims = parsedResponse.claims || [];

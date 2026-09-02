@@ -26,10 +26,22 @@ export async function PATCH(
 
     if (error) throw error;
 
-    // Optional: Update overall roadmap completion percentage
-    // To keep it simple, we can just return the updated step here
-    // and let the frontend calculate the progress visually, 
-    // or we can calculate it here. For robustness, we will let frontend derive it.
+    // Update overall roadmap completion percentage
+    const { data: allSteps } = await supabase
+      .from('roadmap_steps')
+      .select('status')
+      .eq('roadmap_id', data.roadmap_id);
+
+    if (allSteps) {
+      const totalSteps = allSteps.length;
+      const completedSteps = allSteps.filter((s: any) => s.status === 'COMPLETED').length;
+      const percentage = totalSteps === 0 ? 0 : Math.round((completedSteps / totalSteps) * 100);
+
+      await supabase
+        .from('roadmaps')
+        .update({ completion_percentage: percentage })
+        .eq('id', data.roadmap_id);
+    }
 
     return NextResponse.json({ step: data });
   } catch (error: any) {
