@@ -31,7 +31,21 @@ export async function GET(
       .eq('roadmap_id', roadmap.id)
       .order('order_index', { ascending: true });
 
-    return NextResponse.json({ roadmap, steps: steps || [] });
+    const mappedSteps = (steps || []).map(s => ({
+      id: s.id,
+      roadmapId: s.roadmap_id,
+      orderIndex: s.order_index,
+      stepType: s.step_type,
+      title: s.title,
+      description: s.description,
+      sourceChunkId: s.source_chunk_id,
+      sourceClause: s.source_clause,
+      confidenceLevel: s.confidence_level,
+      status: s.status,
+      createdAt: s.created_at
+    }));
+
+    return NextResponse.json({ roadmap, steps: mappedSteps });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
@@ -195,7 +209,21 @@ ${contextText}`;
       .eq('roadmap_id', newRoadmap.id)
       .order('order_index', { ascending: true });
 
-    return NextResponse.json({ roadmap: newRoadmap, steps: finalSteps || [] });
+    const mappedSteps = (finalSteps || []).map(s => ({
+      id: s.id,
+      roadmapId: s.roadmap_id,
+      orderIndex: s.order_index,
+      stepType: s.step_type,
+      title: s.title,
+      description: s.description,
+      sourceChunkId: s.source_chunk_id,
+      sourceClause: s.source_clause,
+      confidenceLevel: s.confidence_level,
+      status: s.status,
+      createdAt: s.created_at
+    }));
+
+    return NextResponse.json({ roadmap: newRoadmap, steps: mappedSteps });
   } catch (error: any) {
     console.error('Roadmap API Error:', error);
     return NextResponse.json({ error: error.message || 'Failed to generate roadmap' }, { status: 500 });

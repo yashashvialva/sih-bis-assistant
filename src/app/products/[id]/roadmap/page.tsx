@@ -326,13 +326,6 @@ export default function RoadmapPage() {
 
                   return (
                     <div key={step.id} className="relative pl-14">
-                      <div
-                        className="absolute left-4 w-5 h-5 rounded-full flex items-center justify-center text-xs z-10 font-bold bg-background border-2 border-primary/50 text-primary"
-                        style={{ top: '1.25rem' }}
-                      >
-                        {step.orderIndex}
-                      </div>
-
                       <div className="card p-5 transition-colors">
                         <button
                           onClick={() => toggleStepAccordion(step.id)}
@@ -340,7 +333,7 @@ export default function RoadmapPage() {
                         >
                           <div className="flex-1 flex gap-4">
                             <div 
-                              className="mt-1 cursor-pointer"
+                              className="mt-1 cursor-pointer shrink-0"
                               onClick={(e) => toggleStepCompletion(step.id, step.status, e)}
                             >
                               <Circle size={24} className="text-muted-foreground hover:text-primary transition-colors" />
@@ -412,13 +405,6 @@ export default function RoadmapPage() {
 
                     return (
                       <div key={step.id} className="relative pl-14 opacity-75 hover:opacity-100 transition-opacity">
-                        <div
-                          className="absolute left-4 w-5 h-5 rounded-full flex items-center justify-center text-xs z-10 font-bold bg-emerald-500 text-white border-none"
-                          style={{ top: '1.25rem' }}
-                        >
-                          ✓
-                        </div>
-
                         <div className="card p-5 transition-colors bg-muted/30 border-muted">
                           <button
                             onClick={() => toggleStepAccordion(step.id)}
@@ -426,7 +412,7 @@ export default function RoadmapPage() {
                           >
                             <div className="flex-1 flex gap-4">
                               <div 
-                                className="mt-1 cursor-pointer"
+                                className="mt-1 cursor-pointer shrink-0"
                                 onClick={(e) => toggleStepCompletion(step.id, step.status, e)}
                               >
                                 <CheckCircle2 size={24} className="text-emerald-500 hover:text-emerald-600" />
